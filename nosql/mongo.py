@@ -4,11 +4,10 @@ from pymongo import MongoClient
 
 from config import DATABASES
 from nosql.queries import (
-    AGGREGATE_OPERATIONS,
-    CRUD_OPERATIONS,
     EXPLAIN_OPERATIONS,
     INDEXED_OPERATIONS,
     JSON_OPERATIONS,
+    NONINDEXED_OPERATIONS,
 )
 from utils.generator import generate_bulk_users
 from utils.results import save_explain_result, save_result
@@ -28,7 +27,7 @@ class MongoBenchmark:
         if self.client:
             self.client.close()
 
-    def setup_collections(self):
+    def setup_collections(self, create_indexes=True):
         self.db.users.drop()
         self.db.products.drop()
         self.db.orders.drop()
@@ -40,22 +39,23 @@ class MongoBenchmark:
         self.db.addresses.drop()
         self.db.payments.drop()
 
-        self.db.users.create_index("email")
-        self.db.users.create_index("created_at")
-        self.db.products.create_index("category_id")
-        self.db.products.create_index("price")
-        self.db.orders.create_index("user_id")
-        self.db.orders.create_index("status")
-        self.db.orders.create_index("created_at")
+        if create_indexes:
+            self.db.users.create_index("email")
+            self.db.users.create_index("created_at")
+            self.db.products.create_index("category_id")
+            self.db.products.create_index("price")
+            self.db.orders.create_index("user_id")
+            self.db.orders.create_index("status")
+            self.db.orders.create_index("created_at")
 
     def bulk_insert(self, collection, count, generator_func):
         docs = generator_func(count)
         getattr(self.db, collection).insert_many(docs)
 
-    def run_crud_queries(self, size):
+    def run_nonindexed_queries(self, size):
         results = {}
 
-        for name, query_func in CRUD_OPERATIONS.items():
+        for name, query_func in NONINDEXED_OPERATIONS.items():
             start = time.time()
 
             if name == "insert_single":
@@ -317,13 +317,13 @@ def run_mongo_benchmark(size, operation_type="all"):
     bench.connect()
 
     try:
-        bench.setup_collections()
-
-        if operation_type in ["all", "crud"]:
+        if operation_type in ["all", "nonindexed"]:
+            bench.setup_collections(create_indexes=False)
             bench.bulk_insert("users", size, generate_bulk_users)
-            bench.run_crud_queries(size)
+            bench.run_nonindexed_queries(size)
 
         if operation_type in ["all", "indexed"]:
+            bench.setup_collections(create_indexes=True)
             bench.run_indexed_queries(size)
 
         if operation_type in ["all", "explain"]:

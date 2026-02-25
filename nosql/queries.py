@@ -1,4 +1,4 @@
-CRUD_OPERATIONS = {
+NONINDEXED_OPERATIONS = {
     # CREATE - 6 queries
     "insert_single": lambda: {
         "name": "test_user",

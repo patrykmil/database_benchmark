@@ -5,7 +5,12 @@ import psycopg2
 from psycopg2.extras import execute_values
 
 from config import DATABASES
-from sql.queries import CRUD_QUERIES, EXPLAIN_QUERIES, INDEXED_QUERIES, JSON_QUERIES
+from sql.queries import (
+    EXPLAIN_QUERIES,
+    INDEXED_QUERIES,
+    JSON_QUERIES,
+    NONINDEXED_QUERIES,
+)
 from sql.schema import INDEXES, SCHEMA
 from utils.generator import (
     generate_bulk_categories,
@@ -34,10 +39,11 @@ class PostgresBenchmark:
         if self.conn:
             self.conn.close()
 
-    def setup_schema(self):
+    def setup_schema(self, create_indexes=True):
         with self.conn.cursor() as cur:
             cur.execute(SCHEMA)
-            cur.execute(INDEXES)
+            if create_indexes:
+                cur.execute(INDEXES)
 
     def setup_reference_data(self):
         with self.conn.cursor() as cur:
@@ -62,9 +68,9 @@ class PostgresBenchmark:
                 template="(%s, %s, %s, %s)",
             )
 
-    def run_crud_queries(self, size):
+    def run_nonindexed_queries(self, size):
         results = {}
-        for name, q in CRUD_QUERIES.items():
+        for name, q in NONINDEXED_QUERIES.items():
             params = q["params"]()
             if name == "insert_bulk":
                 users = generate_bulk_users(1000)
@@ -184,13 +190,13 @@ def run_postgres_benchmark(size, operation_type="all"):
     bench.connect()
 
     try:
-        bench.setup_schema()
-
-        if operation_type in ["all", "crud"]:
+        if operation_type in ["all", "nonindexed"]:
+            bench.setup_schema(create_indexes=False)
             bench.bulk_insert_users(size)
-            bench.run_crud_queries(size)
+            bench.run_nonindexed_queries(size)
 
         if operation_type in ["all", "indexed"]:
+            bench.setup_schema(create_indexes=True)
             bench.setup_reference_data()
             bench.run_indexed_queries(size)
 

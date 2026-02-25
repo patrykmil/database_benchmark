@@ -1,4 +1,4 @@
-CRUD_QUERIES = {
+NONINDEXED_QUERIES = {
     # CREATE - 6 queries
     "insert_single": {
         "query": "INSERT INTO users (name, email, created_at, preferences) VALUES (%s, %s, %s, %s)",

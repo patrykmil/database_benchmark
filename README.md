@@ -29,8 +29,8 @@ python main.py --db postgres --operation all --size all
 #### Run specific operation types
 
 ```sh
-# CRUD operations only
-python main.py --db postgres --operation crud --size 5000
+# nonindexed operations only
+python main.py --db postgres --operation nonindexed --size 5000
 
 # Indexed queries
 python main.py --db sqlite --operation indexed --size 5000
@@ -49,7 +49,7 @@ python main.py --db all --operation all --size all
 
 **--db**: `postgres`, `sqlite`, `mongo`, `unqlite`, `all`
 
-**--operation**: `crud`, `indexed`, `explain`, `json`, `all`
+**--operation**: `nonindexed`, `indexed`, `explain`, `json`, `all`
 
 **--size**: `5000`, `500000`, `1000000`, `10000000`, `all`
 

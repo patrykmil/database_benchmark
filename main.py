@@ -17,7 +17,7 @@ DATABASES = {
 }
 
 OPERATIONS = {
-    "crud": "crud",
+    "nonindexed": "nonindexed",
     "indexed": "indexed",
     "explain": "explain",
     "json": "json",
@@ -25,10 +25,10 @@ OPERATIONS = {
 }
 
 SIZES_MAP = {
-    "5000": 5000,
-    "500000": 500000,
-    "1000000": 1000000,
-    "10000000": 10000000,
+    "5000": 5_000,
+    "500000": 500_000,
+    "1000000": 1_000_000,
+    "10000000": 10_000_000,
     "all": "all",
 }
 
@@ -82,7 +82,7 @@ def main():
 
     print(f"\n{'=' * 50}")
     print("All benchmarks completed!")
-    print(f"Results saved to: results/benchmark_results.csv")
+    print("Results saved to: results/benchmark_results.csv")
     print(f"{'=' * 50}")
 
 

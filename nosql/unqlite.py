@@ -5,10 +5,10 @@ import unqlite
 
 from config import DATABASES
 from nosql.queries import (
-    CRUD_OPERATIONS,
     EXPLAIN_OPERATIONS,
     INDEXED_OPERATIONS,
     JSON_OPERATIONS,
+    NONINDEXED_OPERATIONS,
 )
 from utils.generator import generate_bulk_users
 from utils.results import save_explain_result, save_result
@@ -41,10 +41,10 @@ class UnqliteBenchmark:
             rid = col.store(doc)
             self.record_ids.append(rid)
 
-    def run_crud_queries(self, size):
+    def run_nonindexed_queries(self, size):
         results = {}
 
-        for name in CRUD_OPERATIONS.keys():
+        for name in NONINDEXED_OPERATIONS.keys():
             elapsed = 0
             if name == "insert_single":
                 user = {
@@ -330,9 +330,9 @@ def run_unqlite_benchmark(size, operation_type="all"):
     bench.connect()
 
     try:
-        if operation_type in ["all", "crud"]:
+        if operation_type in ["all", "nonindexed"]:
             bench.bulk_insert("users", size, generate_bulk_users)
-            bench.run_crud_queries(size)
+            bench.run_nonindexed_queries(size)
 
         if operation_type in ["all", "indexed"]:
             bench.run_indexed_queries(size)
