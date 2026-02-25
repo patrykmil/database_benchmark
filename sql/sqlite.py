@@ -115,12 +115,12 @@ class SQLiteBenchmark:
             params = q["params"]()
             start = time.time()
             cur = self.conn.cursor()
-            cur.execute(
-                q["query"].replace("EXPLAIN ANALYZE", "EXPLAIN QUERY PLAN"), params
-            )
+            query = q["query"].replace("EXPLAIN ANALYZE", "EXPLAIN QUERY PLAN")
+            query = to_sqlite_query(query)
+            cur.execute(query, params)
             plan = cur.fetchall()
             elapsed = (time.time() - start) * 1000
-            plan_text = "\n".join([str(row) for row in plan])
+            plan_text = "\n".join([str(list(row)) for row in plan])
             save_explain_result("sqlite", name, plan_text, elapsed)
         return True
 
@@ -129,6 +129,7 @@ class SQLiteBenchmark:
         for name, q in JSON_QUERIES.items():
             params = q["params"]()
             query = q["query"].replace("->>", "json_extract").replace("@>", "json_each")
+            query = to_sqlite_query(query)
             start = time.time()
             cur = self.conn.cursor()
             try:
