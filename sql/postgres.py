@@ -39,6 +39,11 @@ class PostgresBenchmark:
             cur.execute(SCHEMA)
             cur.execute(INDEXES)
 
+    def setup_reference_data(self):
+        with self.conn.cursor() as cur:
+            cur.execute("INSERT INTO categories (name) VALUES ('cat1'), ('cat2'), ('cat3'), ('cat4'), ('cat5')")
+            cur.execute("INSERT INTO warehouses (name, location) VALUES ('wh1', 'loc1'), ('wh2', 'loc2')")
+
     def bulk_insert_users(self, count):
         users = generate_bulk_users(count)
         data = [
@@ -135,6 +140,7 @@ def run_postgres_benchmark(size, operation_type="all"):
             bench.run_crud_queries(size)
 
         if operation_type in ["all", "indexed"]:
+            bench.setup_reference_data()
             bench.run_indexed_queries(size)
 
         if operation_type == "explain":

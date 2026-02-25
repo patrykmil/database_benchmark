@@ -19,19 +19,18 @@ AGGREGATE_OPERATIONS = {
 }
 
 INDEXED_OPERATIONS = {
-    "select_indexed": lambda: {"category_id": 1},
-    "select_range": lambda: {"price": {"$gte": 100, "$lte": 500}},
-    "select_like": lambda: {"name": {"$regex": "widget"}},
-    "select_order_by": lambda: [],
-    "update_indexed": lambda: {"$set": {"status": "shipped"}},
-    "delete_indexed": lambda: {"product_id": 1},
-    "select_between": lambda: {
-        "created_at": {"$gte": "2024-01-01", "$lte": "2024-12-31"}
-    },
-    "select_in": lambda: {"category_id": {"$in": [1, 2, 3]}},
-    "select_exists": lambda: {"orders": {"$exists": True}},
-    "select_group_by": lambda: [{"$group": {"_id": "$status", "count": {"$sum": 1}}}],
-    "select_having": lambda: [{"$match": {"total": {"$gt": 1000}}}],
+    "insert_indexed": lambda: ({"name": "new_product", "price": 99.99, "category_id": 1, "attributes": {"color": "red"}}, "insert"),
+    "select_indexed": lambda: ({"category_id": 1}, None),
+    "select_range": lambda: ({"price": {"$gte": 100, "$lte": 500}}, None),
+    "select_like": lambda: ({"name": {"$regex": "widget"}}, None),
+    "select_order_by": lambda: ({}, None),
+    "update_indexed": lambda: ({"user_id": 1}, {"$set": {"status": "shipped"}}),
+    "delete_indexed": lambda: ({"product_id": 1}, None),
+    "select_between": lambda: ({"created_at": {"$gte": "2024-01-01", "$lte": "2024-12-31"}}, None),
+    "select_in": lambda: ({"category_id": {"$in": [1, 2, 3]}}, None),
+    "select_exists": lambda: ({"orders": {"$exists": True}}, None),
+    "select_group_by": lambda: (None, [{"$group": {"_id": "$status", "count": {"$sum": 1}}}]),
+    "select_having": lambda: (None, [{"$match": {"total": {"$gt": 1000}}}]),
 }
 
 JOIN_OPERATIONS = {

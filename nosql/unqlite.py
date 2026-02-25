@@ -119,6 +119,16 @@ class UnqliteBenchmark:
     def run_indexed_queries(self, size):
         results = {}
 
+        col = self._get_collection("products")
+        if not col.exists():
+            col.create()
+
+        start = time.time()
+        col.store({"name": "new_product", "price": 99.99, "category_id": 1, "attributes": {"color": "red"}})
+        elapsed = (time.time() - start) * 1000
+        results["insert_indexed"] = elapsed
+        save_result("unqlite", "insert_indexed", size, elapsed, size)
+
         results["select_indexed"] = 0
         save_result("unqlite", "select_indexed", size, 0, size)
 

@@ -11,7 +11,7 @@ from utils.results import save_explain_result, save_result
 
 
 def to_sqlite_query(query):
-    return re.sub(r'%s', '?', query)
+    return query.replace('%s', '?')
 
 
 class SQLiteBenchmark:
@@ -35,6 +35,12 @@ class SQLiteBenchmark:
         for stmt in SQLITE_INDEXES.split(";"):
             if stmt.strip():
                 cur.execute(stmt)
+        self.conn.commit()
+
+    def setup_reference_data(self):
+        cur = self.conn.cursor()
+        cur.execute("INSERT INTO categories (name) VALUES ('cat1'), ('cat2'), ('cat3'), ('cat4'), ('cat5')")
+        cur.execute("INSERT INTO warehouses (name, location) VALUES ('wh1', 'loc1'), ('wh2', 'loc2')")
         self.conn.commit()
 
     def bulk_insert_users(self, count):
@@ -148,6 +154,7 @@ def run_sqlite_benchmark(size, operation_type="all"):
             bench.run_crud_queries(size)
 
         if operation_type in ["all", "indexed"]:
+            bench.setup_reference_data()
             bench.run_indexed_queries(size)
 
         if operation_type == "explain":

@@ -156,12 +156,25 @@ class MongoBenchmark:
     def run_indexed_queries(self, size):
         results = {}
 
-        for name, query in INDEXED_OPERATIONS.items():
+        for name, query_func in INDEXED_OPERATIONS.items():
+            query_filter, update_or_aggregate = query_func()
             start = time.time()
-            if name == "select_order_by":
+            
+            if name == "insert_indexed":
+                self.db.products.insert_one(query_filter)
+            elif name == "select_order_by":
                 list(self.db.orders.find({}).sort("created_at", -1).limit(100))
+            elif update_or_aggregate and name.startswith("select_group_by"):
+                list(self.db.orders.aggregate(update_or_aggregate))
+            elif update_or_aggregate and name.startswith("select_having"):
+                list(self.db.orders.aggregate(update_or_aggregate))
+            elif name.startswith("update_"):
+                self.db.orders.update_one(query_filter, update_or_aggregate)
+            elif name.startswith("delete_"):
+                self.db.products.delete_many(query_filter)
             else:
-                list(self.db.products.find(query()))
+                list(self.db.products.find(query_filter))
+            
             elapsed = (time.time() - start) * 1000
             results[name] = elapsed
             save_result("mongo", name, size, elapsed, size)

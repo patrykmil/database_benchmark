@@ -83,8 +83,8 @@ INDEXED_QUERIES = {
         "params": lambda: ("2024-01-01", "2024-12-31"),
     },
     "select_in": {
-        "query": "SELECT * FROM products WHERE category_id IN %s",
-        "params": lambda: ((1, 2, 3),),
+        "query": "SELECT * FROM products WHERE category_id IN (1, 2, 3)",
+        "params": lambda: (),
     },
     "select_exists": {
         "query": """SELECT * FROM users u 
