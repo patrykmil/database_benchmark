@@ -11,6 +11,7 @@ CRUD_QUERIES = {
     "insert_bulk": {
         "query": "INSERT INTO users (name, email, created_at, preferences) VALUES ",
         "bulk": True,
+        "params": lambda: (),
     },
     "select_single": {
         "query": "SELECT * FROM users WHERE id = %s",

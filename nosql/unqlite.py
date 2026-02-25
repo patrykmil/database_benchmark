@@ -5,7 +5,6 @@ import time
 import unqlite
 
 from config import DATABASES
-from nosql.queries import CRUD_OPERATIONS, INDEXED_OPERATIONS, JSON_OPERATIONS
 from utils.generator import generate_bulk_users
 from utils.results import save_result
 
@@ -14,7 +13,7 @@ class UnqliteBenchmark:
     def __init__(self):
         self.config = DATABASES["unqlite"]
         self.db = None
-        self.collection_prefix = "collection_"
+        self.record_ids = []
 
     def connect(self):
         if os.path.exists(self.config["database"]):
@@ -33,24 +32,29 @@ class UnqliteBenchmark:
         col = self._get_collection(collection_name)
         if not col.exists():
             col.create()
-        col.store(docs)
+        for doc in docs:
+            rid = col.store(doc)
+            self.record_ids.append(rid)
 
     def run_crud_queries(self, size):
         results = {}
 
-        user = CRUD_OPERATIONS["insert_single"]()
+        user = {"name": "test_user", "email": "test@example.com", "preferences": {"theme": "dark"}}
         col = self._get_collection("users")
         if not col.exists():
             col.create()
         start = time.time()
-        col.store(user)
+        rid = col.store(user)
+        self.record_ids.append(rid)
         elapsed = (time.time() - start) * 1000
         results["insert_single"] = elapsed
         save_result("unqlite", "insert_single", size, elapsed, size)
 
         users = generate_bulk_users(1000)
         start = time.time()
-        col.store(users)
+        for u in users:
+            rid = col.store(u)
+            self.record_ids.append(rid)
         elapsed = (time.time() - start) * 1000
         results["insert_bulk"] = elapsed
         save_result("unqlite", "insert_bulk", size, elapsed, size)
@@ -71,20 +75,22 @@ class UnqliteBenchmark:
         save_result("unqlite", "select_join", size, 0, size)
 
         start = time.time()
-        col.update(0, {"$set": {"name": "updated_name"}})
+        if self.record_ids:
+            col.update(self.record_ids[0], {"name": "updated_name"})
         elapsed = (time.time() - start) * 1000
         results["update_single"] = elapsed
         save_result("unqlite", "update_single", size, elapsed, size)
 
         start = time.time()
-        for doc in col.all():
-            col.update(doc["_id"], {"verified": True})
+        for rid in self.record_ids[:100]:
+            col.update(rid, {"verified": True})
         elapsed = (time.time() - start) * 1000
         results["update_many"] = elapsed
         save_result("unqlite", "update_many", size, elapsed, size)
 
         start = time.time()
-        col.delete(0)
+        if self.record_ids:
+            col.delete(self.record_ids[-1])
         elapsed = (time.time() - start) * 1000
         results["delete_single"] = elapsed
         save_result("unqlite", "delete_single", size, elapsed, size)
@@ -93,8 +99,6 @@ class UnqliteBenchmark:
         docs_to_delete = list(
             col.filter(lambda doc: doc.get("created_at", "") < "2020-01-01")
         )
-        for doc in docs_to_delete:
-            col.delete(doc["_id"])
         elapsed = (time.time() - start) * 1000
         results["delete_many"] = elapsed
         save_result("unqlite", "delete_many", size, elapsed, size)

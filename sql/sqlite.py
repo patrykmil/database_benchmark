@@ -1,4 +1,5 @@
 import json
+import re
 import sqlite3
 import time
 
@@ -7,6 +8,10 @@ from sql.queries import CRUD_QUERIES, EXPLAIN_QUERIES, INDEXED_QUERIES, JSON_QUE
 from sql.schema import SQLITE_INDEXES, SQLITE_SCHEMA
 from utils.generator import generate_bulk_users
 from utils.results import save_explain_result, save_result
+
+
+def to_sqlite_query(query):
+    return re.sub(r'%s', '?', query)
 
 
 class SQLiteBenchmark:
@@ -76,7 +81,7 @@ class SQLiteBenchmark:
             else:
                 start = time.time()
                 cur = self.conn.cursor()
-                cur.execute(q["query"], params)
+                cur.execute(to_sqlite_query(q["query"]), params)
                 if name.startswith("select"):
                     cur.fetchall()
                 elapsed = (time.time() - start) * 1000
@@ -91,7 +96,7 @@ class SQLiteBenchmark:
             params = q["params"]()
             start = time.time()
             cur = self.conn.cursor()
-            cur.execute(q["query"], params)
+            cur.execute(to_sqlite_query(q["query"]), params)
             if name.startswith("select"):
                 cur.fetchall()
             elapsed = (time.time() - start) * 1000

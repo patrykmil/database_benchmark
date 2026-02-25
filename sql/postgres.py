@@ -1,3 +1,4 @@
+import json
 import time
 
 import psycopg2
@@ -41,7 +42,7 @@ class PostgresBenchmark:
     def bulk_insert_users(self, count):
         users = generate_bulk_users(count)
         data = [
-            (u["name"], u["email"], u["created_at"], str(u["preferences"]))
+            (u["name"], u["email"], u["created_at"], json.dumps(u["preferences"]))
             for u in users
         ]
         with self.conn.cursor() as cur:
@@ -59,7 +60,7 @@ class PostgresBenchmark:
             if name == "insert_bulk":
                 users = generate_bulk_users(1000)
                 data = [
-                    (u["name"], u["email"], u["created_at"], str(u["preferences"]))
+                    (u["name"], u["email"], u["created_at"], json.dumps(u["preferences"]))
                     for u in users
                 ]
                 query = q["query"] + "(%s, %s, %s, %s)" + ",(%s, %s, %s, %s)" * 999
