@@ -15,9 +15,17 @@
               python313Packages.pip
             ];
             shellHook = ''
-              echo "Create virtual environment with: python -m venv venv"
-              echo "Activate virtual environment with: source venv/bin/activate.fish"
-              echo "Start databases with: && docker compose up -d"
+              if [ ! -d ".venv" ]; then
+                echo "Creating virtual environment..."
+                python -m venv .venv
+                source .venv/bin/activate
+                pip install -r requirements.txt
+              fi
+              source .venv/bin/activate
+
+              if ! docker compose ps --quiet 2>/dev/null | grep -q .; then
+                echo "Start databases with: docker compose up -d"
+              fi
             '';
           };
         };
