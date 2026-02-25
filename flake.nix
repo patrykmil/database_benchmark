@@ -7,12 +7,18 @@
       devShells.x86_64-linux =
         let
           pkgs = nixpkgs.legacyPackages.x86_64-linux;
+
+          format = pkgs.writeShellScriptBin "format" ''
+            ruff check --select I --fix && ruff format
+          '';
         in
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
               python313
               python313Packages.pip
+              ruff
+              format
             ];
             shellHook = ''
               if [ ! -d ".venv" ]; then
