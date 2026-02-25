@@ -1,0 +1,11 @@
+__init__.py
+__pycache__/
+*.pyc
+.ruff_cache
+.venv
+
+*cache*
+.direnv
+
+*.db
+*.unqlite
