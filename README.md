@@ -1,43 +1,48 @@
-# Database Benchmark Tool
-
-A modular benchmark framework comparing SQL and NoSQL databases.
+# Database Benchmark
 
 ## Databases
 
-| Type | Server | Single-file |
-|------|--------|-------------|
-| SQL | PostgreSQL | SQLite |
-| NoSQL | MongoDB | UnQLite |
+| Type  | Server     | Single-file |
+| ----- | ---------- | ----------- |
+| SQL   | PostgreSQL | SQLite      |
+| NoSQL | MongoDB    | UnQLite     |
 
 ## Setup
 
-1. Install dependenciespip install -r requirements.txt
+1. Install dependencies with 
+```sh
+pip install -r requirements.txt
 ```
 
-2. Ensure:
-```bash
- PostgreSQL and MongoDB servers are running
+2. Ensure PostgreSQL and MongoDB servers are running
+```sh
+docker compose up -d
+```
 
 ## Usage
 
-### Run all benchmarks for a specific database
-```bash
+#### Run all benchmarks for a specific database
+```sh
 python main.py --db postgres --operation all --size all
 ```
 
-### Run specific operation types
-```bash
+#### Run specific operation types
+
+```sh
 # CRUD operations only
-python main.py --db postgres --operation crud --size 1000000
+python main.py --db postgres --operation crud --size 5000
 
 # Indexed queries
-python main.py --db sqlite --operation indexed --size 1000000
+python main.py --db sqlite --operation indexed --size 5000
 
 # EXPLAIN ANALYZE (SQL only)
 python main.py --db postgres --operation explain
 
 # JSON queries (SQL only)
 python main.py --db sqlite --operation json
+
+# Run all databases with all operations and sizes
+python main.py --db all --operation all --size all
 ```
 
 ### Available options
@@ -46,7 +51,7 @@ python main.py --db sqlite --operation json
 
 **--operation**: `crud`, `indexed`, `explain`, `json`, `all`
 
-**--size**: `500000`, `1000000`, `10000000`, `all`
+**--size**: `5000`, `500000`, `1000000`, `10000000`, `all`
 
 ## Schema (10 tables)
 
@@ -61,29 +66,9 @@ python main.py --db sqlite --operation json
 9. addresses - id, user_id, city, country, details (JSON)
 10. payments - id, order_id, method, amount, data (JSON)
 
-## Query Types
-
-- **CRUD**: 12 basic insert/select/update/delete/aggregate queries
-- **Indexed**: 12 queries using indexed fields
-- **EXPLAIN**: 6 queries with EXPLAIN ANALYZE plans (SQL only)
-- **JSON**: 3 JSON extraction/containment queries (SQL only)
-
 ## Results
 
 Results are stored in CSV format at:
+
 - `results/benchmark_results.csv` - timing results
 - `results/{db}_explain_{timestamp}.csv` - EXPLAIN plans
-
-## Examples
-
-```bash
-# Run PostgreSQL CRUD benchmark with 1M records
-python main.py --db postgres --operation crud --size 1000000
-
-# Run all databases with all operations and sizes
-python main.py --db all --operation all --size all
-
-# Compare SQLite vs PostgreSQL with indexed queries
-python main.py --db postgres --operation indexed --size 500000
-python main.py --db sqlite --operation indexed --size 500000
-```

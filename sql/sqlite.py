@@ -1,5 +1,4 @@
 import json
-import re
 import sqlite3
 import time
 
@@ -11,7 +10,7 @@ from utils.results import save_explain_result, save_result
 
 
 def to_sqlite_query(query):
-    return query.replace('%s', '?')
+    return query.replace("%s", "?")
 
 
 class SQLiteBenchmark:
@@ -39,8 +38,12 @@ class SQLiteBenchmark:
 
     def setup_reference_data(self):
         cur = self.conn.cursor()
-        cur.execute("INSERT INTO categories (name) VALUES ('cat1'), ('cat2'), ('cat3'), ('cat4'), ('cat5')")
-        cur.execute("INSERT INTO warehouses (name, location) VALUES ('wh1', 'loc1'), ('wh2', 'loc2')")
+        cur.execute(
+            "INSERT INTO categories (name) VALUES ('cat1'), ('cat2'), ('cat3'), ('cat4'), ('cat5')"
+        )
+        cur.execute(
+            "INSERT INTO warehouses (name, location) VALUES ('wh1', 'loc1'), ('wh2', 'loc2')"
+        )
         self.conn.commit()
 
     def bulk_insert_users(self, count):
@@ -84,6 +87,17 @@ class SQLiteBenchmark:
                 )
                 self.conn.commit()
                 elapsed = (time.time() - start) * 1000
+            elif name == "insert_many":
+                cats = [(f"cat{i}",) for i in range(100)]
+                start = time.time()
+                cur = self.conn.cursor()
+                cur.executemany(
+                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0]
+                    + "VALUES (?)",
+                    cats,
+                )
+                self.conn.commit()
+                elapsed = (time.time() - start) * 1000
             else:
                 start = time.time()
                 cur = self.conn.cursor()
@@ -100,12 +114,46 @@ class SQLiteBenchmark:
         results = {}
         for name, q in INDEXED_QUERIES.items():
             params = q["params"]()
-            start = time.time()
-            cur = self.conn.cursor()
-            cur.execute(to_sqlite_query(q["query"]), params)
-            if name.startswith("select"):
-                cur.fetchall()
-            elapsed = (time.time() - start) * 1000
+            if name == "index_insert_bulk":
+                users = generate_bulk_users(1000)
+                data = [
+                    (
+                        u["name"],
+                        u["email"],
+                        str(u["created_at"]),
+                        json.dumps(u["preferences"]),
+                    )
+                    for u in users
+                ]
+                start = time.time()
+                cur = self.conn.cursor()
+                cur.executemany(
+                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0]
+                    + "VALUES (?, ?, ?, ?)",
+                    data,
+                )
+                self.conn.commit()
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_insert_many":
+                prods = [
+                    (f"product{i}", 10.0, 1, '{"color": "red"}') for i in range(100)
+                ]
+                start = time.time()
+                cur = self.conn.cursor()
+                cur.executemany(
+                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0]
+                    + "VALUES (?, ?, ?, ?)",
+                    prods,
+                )
+                self.conn.commit()
+                elapsed = (time.time() - start) * 1000
+            else:
+                start = time.time()
+                cur = self.conn.cursor()
+                cur.execute(to_sqlite_query(q["query"]), params)
+                if name.startswith("select"):
+                    cur.fetchall()
+                elapsed = (time.time() - start) * 1000
             results[name] = elapsed
             save_result("sqlite", name, size, elapsed, size)
         return results
@@ -158,10 +206,10 @@ def run_sqlite_benchmark(size, operation_type="all"):
             bench.setup_reference_data()
             bench.run_indexed_queries(size)
 
-        if operation_type == "explain":
+        if operation_type in ["all", "explain"]:
             bench.run_explain_queries()
 
-        if operation_type == "json":
+        if operation_type in ["all", "json"]:
             bench.run_json_queries(size)
 
     finally:

@@ -6,12 +6,12 @@ from config import DATABASES
 from nosql.queries import (
     AGGREGATE_OPERATIONS,
     CRUD_OPERATIONS,
+    EXPLAIN_OPERATIONS,
     INDEXED_OPERATIONS,
-    JOIN_OPERATIONS,
     JSON_OPERATIONS,
 )
 from utils.generator import generate_bulk_users
-from utils.results import save_result
+from utils.results import save_explain_result, save_result
 
 
 class MongoBenchmark:
@@ -55,101 +55,91 @@ class MongoBenchmark:
     def run_crud_queries(self, size):
         results = {}
 
-        user = CRUD_OPERATIONS["insert_single"]()
-        start = time.time()
-        self.db.users.insert_one(user)
-        elapsed = (time.time() - start) * 1000
-        results["insert_single"] = elapsed
-        save_result("mongo", "insert_single", size, elapsed, size)
+        for name, query_func in CRUD_OPERATIONS.items():
+            start = time.time()
 
-        users = generate_bulk_users(1000)
-        start = time.time()
-        self.db.users.insert_many(users)
-        elapsed = (time.time() - start) * 1000
-        results["insert_bulk"] = elapsed
-        save_result("mongo", "insert_bulk", size, elapsed, size)
+            if name == "insert_single":
+                doc = query_func()
+                self.db.users.insert_one(doc)
+            elif name == "insert_bulk":
+                docs = query_func()
+                self.db.users.insert_many(docs)
+            elif name == "insert_ignore":
+                doc = query_func()
+                try:
+                    self.db.users.insert_one(doc)
+                except:
+                    pass
+            elif name == "insert_upsert":
+                doc = query_func()
+                self.db.users.update_one(
+                    {"email": "test@example.com"}, doc, upsert=True
+                )
+            elif name == "insert_many":
+                docs = query_func()
+                self.db.categories.insert_many(docs)
+            elif name == "insert_returning":
+                doc = query_func()
+                self.db.users.insert_one(doc)
+            elif name == "select_single":
+                doc_filter = query_func(1)
+                list(self.db.users.find(doc_filter))
+            elif name == "select_where":
+                doc_filter = query_func()
+                list(self.db.users.find(doc_filter))
+            elif name == "select_join":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "select_aggregate":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "select_pagination":
+                pipeline = query_func()
+                list(self.db.users.aggregate(pipeline))
+            elif name == "select_distinct":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "update_single":
+                update_doc = query_func()
+                self.db.users.update_one({"_id": 1}, update_doc)
+            elif name == "update_many":
+                update_doc = query_func()
+                self.db.users.update_many({}, update_doc)
+            elif name == "update_in":
+                update_doc = query_func()
+                self.db.users.update_many({"_id": {"$in": [1, 2, 3]}}, update_doc)
+            elif name == "update_case":
+                update_doc = query_func()
+                pass
+            elif name == "update_join":
+                update_doc = query_func()
+                pass
+            elif name == "update_upsert":
+                doc = query_func()
+                self.db.products.update_one(
+                    {"name": "upsert_product"}, {"$set": doc}, upsert=True
+                )
+            elif name == "delete_single":
+                doc_filter = query_func(999999)
+                self.db.users.delete_one(doc_filter)
+            elif name == "delete_many":
+                doc_filter = query_func()
+                self.db.users.delete_many(doc_filter)
+            elif name == "delete_in":
+                doc_filter = query_func()
+                self.db.users.delete_many(doc_filter)
+            elif name == "delete_cascade":
+                doc_filter = query_func()
+                self.db.orders.delete_many(doc_filter)
+            elif name == "delete_join":
+                pipeline = query_func()
+                pass
+            elif name == "delete_truncate":
+                self.db.addresses.delete_many({})
 
-        start = time.time()
-        list(self.db.users.find({}))
-        elapsed = (time.time() - start) * 1000
-        results["select_single"] = elapsed
-        save_result("mongo", "select_single", size, elapsed, size)
-
-        start = time.time()
-        list(self.db.users.find({"email": {"$regex": "test"}}))
-        elapsed = (time.time() - start) * 1000
-        results["select_where"] = elapsed
-        save_result("mongo", "select_where", size, elapsed, size)
-
-        start = time.time()
-        list(
-            self.db.orders.aggregate(
-                [
-                    {
-                        "$lookup": {
-                            "from": "users",
-                            "localField": "user_id",
-                            "foreignField": "_id",
-                            "as": "user",
-                        }
-                    },
-                    {"$limit": 100},
-                ]
-            )
-        )
-        elapsed = (time.time() - start) * 1000
-        results["select_join"] = elapsed
-        save_result("mongo", "select_join", size, elapsed, size)
-
-        start = time.time()
-        self.db.users.update_one({"_id": 1}, {"$set": {"name": "updated_name"}})
-        elapsed = (time.time() - start) * 1000
-        results["update_single"] = elapsed
-        save_result("mongo", "update_single", size, elapsed, size)
-
-        start = time.time()
-        self.db.users.update_many({}, {"$set": {"verified": True}})
-        elapsed = (time.time() - start) * 1000
-        results["update_many"] = elapsed
-        save_result("mongo", "update_many", size, elapsed, size)
-
-        start = time.time()
-        self.db.users.delete_one({})
-        elapsed = (time.time() - start) * 1000
-        results["delete_single"] = elapsed
-        save_result("mongo", "delete_single", size, elapsed, size)
-
-        start = time.time()
-        self.db.users.delete_many({"created_at": {"$lt": "2020-01-01"}})
-        elapsed = (time.time() - start) * 1000
-        results["delete_many"] = elapsed
-        save_result("mongo", "delete_many", size, elapsed, size)
-
-        start = time.time()
-        list(self.db.orders.aggregate([{"$count": "total"}]))
-        elapsed = (time.time() - start) * 1000
-        results["aggregate_count"] = elapsed
-        save_result("mongo", "aggregate_count", size, elapsed, size)
-
-        start = time.time()
-        list(
-            self.db.orders.aggregate(
-                [{"$group": {"_id": None, "total": {"$sum": "$total"}}}]
-            )
-        )
-        elapsed = (time.time() - start) * 1000
-        results["aggregate_sum"] = elapsed
-        save_result("mongo", "aggregate_sum", size, elapsed, size)
-
-        start = time.time()
-        list(
-            self.db.products.aggregate(
-                [{"$group": {"_id": None, "avg": {"$avg": "$price"}}}]
-            )
-        )
-        elapsed = (time.time() - start) * 1000
-        results["aggregate_avg"] = elapsed
-        save_result("mongo", "aggregate_avg", size, elapsed, size)
+            elapsed = (time.time() - start) * 1000
+            results[name] = elapsed
+            save_result("mongo", name, size, elapsed, size)
 
         return results
 
@@ -157,27 +147,167 @@ class MongoBenchmark:
         results = {}
 
         for name, query_func in INDEXED_OPERATIONS.items():
-            query_filter, update_or_aggregate = query_func()
             start = time.time()
-            
-            if name == "insert_indexed":
-                self.db.products.insert_one(query_filter)
-            elif name == "select_order_by":
-                list(self.db.orders.find({}).sort("created_at", -1).limit(100))
-            elif update_or_aggregate and name.startswith("select_group_by"):
-                list(self.db.orders.aggregate(update_or_aggregate))
-            elif update_or_aggregate and name.startswith("select_having"):
-                list(self.db.orders.aggregate(update_or_aggregate))
-            elif name.startswith("update_"):
-                self.db.orders.update_one(query_filter, update_or_aggregate)
-            elif name.startswith("delete_"):
-                self.db.products.delete_many(query_filter)
-            else:
-                list(self.db.products.find(query_filter))
-            
+
+            if name == "index_insert_single":
+                doc = query_func()
+                self.db.users.insert_one(doc)
+            elif name == "index_insert_bulk":
+                docs = query_func()
+                self.db.users.insert_many(docs)
+            elif name == "index_insert_ignore":
+                doc = query_func()
+                try:
+                    self.db.products.insert_one(doc)
+                except:
+                    pass
+            elif name == "index_insert_upsert":
+                doc = query_func()
+                self.db.products.update_one(
+                    {"name": "upsert_product"}, {"$set": doc}, upsert=True
+                )
+            elif name == "index_insert_many":
+                docs = query_func()
+                self.db.products.insert_many(docs)
+            elif name == "index_insert_returning":
+                doc = query_func()
+                self.db.products.insert_one(doc)
+            elif name == "index_select_single":
+                doc_filter = query_func()
+                list(self.db.users.find(doc_filter))
+            elif name == "index_select_where":
+                doc_filter = query_func()
+                list(self.db.users.find(doc_filter))
+            elif name == "index_select_join":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "index_select_aggregate":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "index_select_pagination":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "index_select_distinct":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "index_update_single":
+                update_doc = query_func()
+                self.db.users.update_one({"email": "user1@example.com"}, update_doc)
+            elif name == "index_update_many":
+                update_doc = query_func()
+                self.db.products.update_many({"category_id": 1}, update_doc)
+            elif name == "index_update_in":
+                update_doc = query_func()
+                self.db.products.update_many(
+                    {"category_id": {"$in": [1, 2, 3]}}, update_doc
+                )
+            elif name == "index_update_case":
+                pass
+            elif name == "index_update_join":
+                update_doc = query_func()
+                pass
+            elif name == "index_update_upsert":
+                doc = query_func()
+                self.db.products.update_one(
+                    {"name": "existing_product"}, {"$set": doc}, upsert=True
+                )
+            elif name == "index_delete_single":
+                doc_filter = query_func()
+                self.db.users.delete_one(doc_filter)
+            elif name == "index_delete_many":
+                doc_filter = query_func()
+                self.db.users.delete_many(doc_filter)
+            elif name == "index_delete_in":
+                doc_filter = query_func()
+                self.db.products.delete_many(doc_filter)
+            elif name == "index_delete_cascade":
+                doc_filter = query_func()
+                self.db.orders.delete_many(doc_filter)
+            elif name == "index_delete_join":
+                pipeline = query_func()
+                pass
+            elif name == "index_delete_truncate":
+                self.db.addresses.delete_many({})
+
             elapsed = (time.time() - start) * 1000
             results[name] = elapsed
             save_result("mongo", name, size, elapsed, size)
+
+        return results
+
+    def run_explain_queries(self):
+        for name, query_func in EXPLAIN_OPERATIONS.items():
+            start = time.time()
+            plan_text = ""
+
+            if name == "explain_insert":
+                doc = query_func()
+                self.db.users.insert_one(doc)
+                plan_text = "insert"
+            elif name == "explain_select":
+                doc_filter = query_func()
+                list(self.db.users.find(doc_filter).explain())
+            elif name == "explain_select_where":
+                doc_filter = query_func()
+                list(self.db.users.find(doc_filter).explain())
+            elif name == "explain_select_join":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "explain_select_aggregate":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "explain_select_pagination":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "explain_select_distinct":
+                pipeline = query_func()
+                list(self.db.orders.aggregate(pipeline))
+            elif name == "explain_update":
+                update_doc = query_func()
+                self.db.users.update_one({"email": "user1@example.com"}, update_doc)
+            elif name == "explain_update_many":
+                update_doc = query_func()
+                self.db.products.update_many(update_doc.get("$match", {}), update_doc)
+            elif name == "explain_update_in":
+                update_doc = query_func()
+                self.db.products.update_many(update_doc.get("$match", {}), update_doc)
+            elif name == "explain_delete":
+                doc_filter = query_func()
+                self.db.users.delete_one(doc_filter)
+            elif name == "explain_delete_many":
+                doc_filter = query_func()
+                self.db.users.delete_many(doc_filter)
+            elif name == "explain_delete_in":
+                doc_filter = query_func()
+                self.db.products.delete_many(doc_filter)
+            elif name == "explain_delete_cascade":
+                doc_filter = query_func()
+                self.db.orders.delete_many(doc_filter)
+            elif name == "explain_indexed_select":
+                doc_filter = query_func()
+                list(self.db.products.find(doc_filter).explain())
+            elif name == "explain_indexed_range":
+                doc_filter = query_func()
+                list(self.db.products.find(doc_filter).explain())
+            elif name == "explain_complex_join":
+                pipeline = query_func()
+                list(self.db.users.aggregate(pipeline))
+
+            elapsed = (time.time() - start) * 1000
+            save_explain_result("mongo", name, plan_text, elapsed)
+
+        return True
+
+    def run_json_queries(self, size):
+        results = {}
+
+        for name, query_func in JSON_OPERATIONS.items():
+            start = time.time()
+            doc_filter = query_func()
+            list(self.db.users.find(doc_filter))
+            elapsed = (time.time() - start) * 1000
+            results[name] = elapsed
+            save_result("mongo", f"json_{name}", size, elapsed, size)
 
         return results
 
@@ -195,6 +325,12 @@ def run_mongo_benchmark(size, operation_type="all"):
 
         if operation_type in ["all", "indexed"]:
             bench.run_indexed_queries(size)
+
+        if operation_type in ["all", "explain"]:
+            bench.run_explain_queries()
+
+        if operation_type in ["all", "json"]:
+            bench.run_json_queries(size)
 
     finally:
         bench.close()

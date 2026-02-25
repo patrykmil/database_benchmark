@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import sys
 
 from config import SIZES
 from nosql.mongo import run_mongo_benchmark
@@ -25,7 +24,13 @@ OPERATIONS = {
     "all": "all",
 }
 
-SIZES_MAP = {"500000": 500000, "1000000": 1000000, "10000000": 10000000, "all": "all"}
+SIZES_MAP = {
+    "5000": 5000,
+    "500000": 500000,
+    "1000000": 1000000,
+    "10000000": 10000000,
+    "all": "all",
+}
 
 
 def main():

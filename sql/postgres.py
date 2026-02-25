@@ -41,8 +41,12 @@ class PostgresBenchmark:
 
     def setup_reference_data(self):
         with self.conn.cursor() as cur:
-            cur.execute("INSERT INTO categories (name) VALUES ('cat1'), ('cat2'), ('cat3'), ('cat4'), ('cat5')")
-            cur.execute("INSERT INTO warehouses (name, location) VALUES ('wh1', 'loc1'), ('wh2', 'loc2')")
+            cur.execute(
+                "INSERT INTO categories (name) VALUES ('cat1'), ('cat2'), ('cat3'), ('cat4'), ('cat5')"
+            )
+            cur.execute(
+                "INSERT INTO warehouses (name, location) VALUES ('wh1', 'loc1'), ('wh2', 'loc2')"
+            )
 
     def bulk_insert_users(self, count):
         users = generate_bulk_users(count)
@@ -65,13 +69,28 @@ class PostgresBenchmark:
             if name == "insert_bulk":
                 users = generate_bulk_users(1000)
                 data = [
-                    (u["name"], u["email"], u["created_at"], json.dumps(u["preferences"]))
+                    (
+                        u["name"],
+                        u["email"],
+                        u["created_at"],
+                        json.dumps(u["preferences"]),
+                    )
                     for u in users
                 ]
                 query = q["query"] + "(%s, %s, %s, %s)" + ",(%s, %s, %s, %s)" * 999
                 flat_data = []
                 for u in data:
                     flat_data.extend(u)
+                start = time.time()
+                with self.conn.cursor() as cur:
+                    cur.execute(query, flat_data)
+                elapsed = (time.time() - start) * 1000
+            elif name == "insert_many":
+                cats = [(f"cat{i}",) for i in range(100)]
+                query = q["query"] + "(%s)" + ",(%s)" * 99
+                flat_data = []
+                for c in cats:
+                    flat_data.extend(c)
                 start = time.time()
                 with self.conn.cursor() as cur:
                     cur.execute(query, flat_data)
@@ -92,12 +111,44 @@ class PostgresBenchmark:
         results = {}
         for name, q in INDEXED_QUERIES.items():
             params = q["params"]()
-            start = time.time()
-            with self.conn.cursor() as cur:
-                cur.execute(q["query"], params)
-                if name.startswith("select"):
-                    cur.fetchall()
-            elapsed = (time.time() - start) * 1000
+            if name == "index_insert_bulk":
+                users = generate_bulk_users(1000)
+                data = [
+                    (
+                        u["name"],
+                        u["email"],
+                        u["created_at"],
+                        json.dumps(u["preferences"]),
+                    )
+                    for u in users
+                ]
+                query = q["query"] + "(%s, %s, %s, %s)" + ",(%s, %s, %s, %s)" * 999
+                flat_data = []
+                for u in data:
+                    flat_data.extend(u)
+                start = time.time()
+                with self.conn.cursor() as cur:
+                    cur.execute(query, flat_data)
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_insert_many":
+                prods = [
+                    (f"product{i}", 10.0, 1, '{"color": "red"}') for i in range(100)
+                ]
+                query = q["query"] + "(%s, %s, %s, %s)" + ",(%s, %s, %s, %s)" * 99
+                flat_data = []
+                for p in prods:
+                    flat_data.extend(p)
+                start = time.time()
+                with self.conn.cursor() as cur:
+                    cur.execute(query, flat_data)
+                elapsed = (time.time() - start) * 1000
+            else:
+                start = time.time()
+                with self.conn.cursor() as cur:
+                    cur.execute(q["query"], params)
+                    if name.startswith("select"):
+                        cur.fetchall()
+                elapsed = (time.time() - start) * 1000
             results[name] = elapsed
             save_result("postgres", name, size, elapsed, size)
         return results
@@ -143,10 +194,10 @@ def run_postgres_benchmark(size, operation_type="all"):
             bench.setup_reference_data()
             bench.run_indexed_queries(size)
 
-        if operation_type == "explain":
+        if operation_type in ["all", "explain"]:
             bench.run_explain_queries()
 
-        if operation_type == "json":
+        if operation_type in ["all", "json"]:
             bench.run_json_queries(size)
 
     finally:
