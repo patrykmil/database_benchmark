@@ -62,7 +62,7 @@ def main():
     parser.add_argument(
         "--trials",
         type=int,
-        default=3,
+        default=1,
         help="Number of independent benchmark trials per database and size",
     )
 

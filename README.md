@@ -9,12 +9,14 @@
 
 ## Setup
 
-1. Install dependencies with 
+1. Install dependencies with
+
 ```sh
 pip install -r requirements.txt
 ```
 
 2. Ensure PostgreSQL and MongoDB servers are running
+
 ```sh
 docker compose up -d
 ```
@@ -22,6 +24,7 @@ docker compose up -d
 ## Usage
 
 #### Run all benchmarks for a specific database
+
 ```sh
 python main.py --db postgres --operation all --size all
 ```
@@ -41,8 +44,8 @@ python main.py --db postgres --operation explain
 # JSON queries (SQL only)
 python main.py --db sqlite --operation json
 
-# Run all databases with all operations and sizes
-python main.py --db all --operation all --size all
+# Run all databases with all operations and sizes and 3 trials
+python main.py --db all --operation all --size all --trials 3
 ```
 
 ### Available options
@@ -52,6 +55,8 @@ python main.py --db all --operation all --size all
 **--operation**: `nonindexed`, `indexed`, `explain`, `json`, `all`
 
 **--size**: `5000`, `500000`, `1000000`, `10000000`, `all`
+
+**--trials**: `1`, `2`, `3`, ...
 
 ## Schema (10 tables)
 

@@ -9,5 +9,11 @@ __pycache__/
 
 *.db
 *.unqlite
+*.sqlite
+
 benchmark.unqlite_unqlite_journal
 results/*.csv
+
+.vscode/
+.idea/
+*explain*.csv
