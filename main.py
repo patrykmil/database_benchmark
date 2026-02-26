@@ -83,7 +83,7 @@ def main():
             for trial in range(1, args.trials + 1):
                 print(f"Trial {trial}/{args.trials}")
                 try:
-                    DATABASES[db](size, OPERATIONS[args.operation])
+                    DATABASES[db](size, OPERATIONS[args.operation], trial=trial)
                     print(f"Completed: {db} - {size:,} (trial {trial})")
                 except Exception as e:
                     print(f"Error running {db} with size {size} on trial {trial}: {e}")

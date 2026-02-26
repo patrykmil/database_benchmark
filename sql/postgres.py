@@ -68,7 +68,7 @@ class PostgresBenchmark:
                 template="(%s, %s, %s, %s)",
             )
 
-    def run_nonindexed_queries(self, size):
+    def run_nonindexed_queries(self, size, trial=1):
         results = {}
         for name, q in NONINDEXED_QUERIES.items():
             params = q["params"]()
@@ -110,10 +110,10 @@ class PostgresBenchmark:
                 elapsed = (time.time() - start) * 1000
 
             results[name] = elapsed
-            save_result("postgres", name, size, elapsed, size)
+            save_result("postgres", name, size, elapsed, size, trial=trial)
         return results
 
-    def run_indexed_queries(self, size):
+    def run_indexed_queries(self, size, trial=1):
         results = {}
         for name, q in INDEXED_QUERIES.items():
             params = q["params"]()
@@ -156,10 +156,10 @@ class PostgresBenchmark:
                         cur.fetchall()
                 elapsed = (time.time() - start) * 1000
             results[name] = elapsed
-            save_result("postgres", name, size, elapsed, size)
+            save_result("postgres", name, size, elapsed, size, trial=trial)
         return results
 
-    def run_explain_queries(self):
+    def run_explain_queries(self, trial=1):
         for name, q in EXPLAIN_QUERIES.items():
             params = q["params"]()
             start = time.time()
@@ -168,10 +168,10 @@ class PostgresBenchmark:
                 plan = cur.fetchall()
             elapsed = (time.time() - start) * 1000
             plan_text = "\n".join([str(row) for row in plan])
-            save_explain_result("postgres", name, plan_text, elapsed)
+            save_explain_result("postgres", name, plan_text, elapsed, trial=trial)
         return True
 
-    def run_json_queries(self, size):
+    def run_json_queries(self, size, trial=1):
         results = {}
         for name, q in JSON_QUERIES.items():
             params = q["params"]()
@@ -181,11 +181,11 @@ class PostgresBenchmark:
                 cur.fetchall()
             elapsed = (time.time() - start) * 1000
             results[name] = elapsed
-            save_result("postgres", f"json_{name}", size, elapsed, size)
+            save_result("postgres", f"json_{name}", size, elapsed, size, trial=trial)
         return results
 
 
-def run_postgres_benchmark(size, operation_type="all"):
+def run_postgres_benchmark(size, operation_type="all", trial=1):
     bench = PostgresBenchmark()
     bench.connect()
 
@@ -193,18 +193,18 @@ def run_postgres_benchmark(size, operation_type="all"):
         if operation_type in ["all", "nonindexed"]:
             bench.setup_schema(create_indexes=False)
             bench.bulk_insert_users(size)
-            bench.run_nonindexed_queries(size)
+            bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
             bench.setup_schema(create_indexes=True)
             bench.setup_reference_data()
-            bench.run_indexed_queries(size)
+            bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["all", "explain"]:
-            bench.run_explain_queries()
+            bench.run_explain_queries(trial=trial)
 
         if operation_type in ["all", "json"]:
-            bench.run_json_queries(size)
+            bench.run_json_queries(size, trial=trial)
 
     finally:
         bench.close()

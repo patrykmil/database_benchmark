@@ -41,7 +41,7 @@ class UnqliteBenchmark:
             rid = col.store(doc)
             self.record_ids.append(rid)
 
-    def run_nonindexed_queries(self, size):
+    def run_nonindexed_queries(self, size, trial=1):
         results = {}
 
         for name in NONINDEXED_OPERATIONS.keys():
@@ -189,11 +189,11 @@ class UnqliteBenchmark:
                     elapsed = 0
 
             results[name] = elapsed
-            save_result("unqlite", name, size, elapsed, size)
+            save_result("unqlite", name, size, elapsed, size, trial=trial)
 
         return results
 
-    def run_indexed_queries(self, size):
+    def run_indexed_queries(self, size, trial=1):
         results = {}
 
         for name in INDEXED_OPERATIONS.keys():
@@ -301,47 +301,47 @@ class UnqliteBenchmark:
                 elapsed = 0
 
             results[name] = elapsed
-            save_result("unqlite", name, size, elapsed, size)
+            save_result("unqlite", name, size, elapsed, size, trial=trial)
 
         return results
 
-    def run_explain_queries(self):
+    def run_explain_queries(self, trial=1):
         for name in EXPLAIN_OPERATIONS.keys():
             start = time.time()
             plan_text = f"explain_{name}"
             elapsed = (time.time() - start) * 1000
-            save_explain_result("unqlite", name, plan_text, elapsed)
+            save_explain_result("unqlite", name, plan_text, elapsed, trial=trial)
 
         return True
 
-    def run_json_queries(self, size):
+    def run_json_queries(self, size, trial=1):
         results = {}
 
         for name in JSON_OPERATIONS.keys():
             elapsed = 0
             results[name] = elapsed
-            save_result("unqlite", f"json_{name}", size, elapsed, size)
+            save_result("unqlite", f"json_{name}", size, elapsed, size, trial=trial)
 
         return results
 
 
-def run_unqlite_benchmark(size, operation_type="all"):
+def run_unqlite_benchmark(size, operation_type="all", trial=1):
     bench = UnqliteBenchmark()
     bench.connect()
 
     try:
         if operation_type in ["all", "nonindexed"]:
             bench.bulk_insert("users", size, generate_bulk_users)
-            bench.run_nonindexed_queries(size)
+            bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
-            bench.run_indexed_queries(size)
+            bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["all", "explain"]:
-            bench.run_explain_queries()
+            bench.run_explain_queries(trial=trial)
 
         if operation_type in ["all", "json"]:
-            bench.run_json_queries(size)
+            bench.run_json_queries(size, trial=trial)
 
     finally:
         bench.close()

@@ -11,11 +11,19 @@ def init_csv():
         with open(CSV_FILE, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
-                ["database", "operation", "size", "time_ms", "elements", "timestamp"]
+                [
+                    "database",
+                    "operation",
+                    "size",
+                    "time_ms",
+                    "elements",
+                    "trial",
+                    "timestamp",
+                ]
             )
 
 
-def save_result(database, operation, size, time_ms, elements):
+def save_result(database, operation, size, time_ms, elements, trial=1):
     with open(CSV_FILE, "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
@@ -25,17 +33,29 @@ def save_result(database, operation, size, time_ms, elements):
                 size,
                 round(time_ms, 2),
                 elements,
+                trial,
                 datetime.now().isoformat(),
             ]
         )
 
 
-def save_explain_result(database, query_name, plan_text, execution_time):
+def save_explain_result(database, query_name, plan_text, execution_time, trial=1):
     explain_file = (
-        f"results/{database}_explain_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        f"results/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
     )
     os.makedirs("results", exist_ok=True)
     with open(explain_file, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["database", "query", "plan", "execution_time_ms"])
-        writer.writerow([database, query_name, plan_text, round(execution_time, 2)])
+        writer.writerow(
+            ["database", "query", "plan", "execution_time_ms", "trial", "timestamp"]
+        )
+        writer.writerow(
+            [
+                database,
+                query_name,
+                plan_text,
+                round(execution_time, 2),
+                trial,
+                datetime.now().isoformat(),
+            ]
+        )
