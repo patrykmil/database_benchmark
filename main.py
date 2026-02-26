@@ -52,10 +52,19 @@ def main():
         default="all",
         help="Size of test data (500000, 1000000, 10000000, or all)",
     )
+    parser.add_argument(
+        "--trials",
+        type=int,
+        default=3,
+        help="Number of independent benchmark trials per database and size",
+    )
 
     args = parser.parse_args()
 
     init_csv()
+
+    if args.trials < 1:
+        parser.error("--trials must be at least 1")
 
     sizes = SIZES if args.size == "all" else [SIZES_MAP[args.size]]
 
@@ -71,14 +80,16 @@ def main():
 
         for size in sizes:
             print(f"\n--- Size: {size:,} ---")
-            try:
-                DATABASES[db](size, OPERATIONS[args.operation])
-                print(f"Completed: {db} - {size:,}")
-            except Exception as e:
-                print(f"Error running {db} with size {size}: {e}")
-                import traceback
+            for trial in range(1, args.trials + 1):
+                print(f"Trial {trial}/{args.trials}")
+                try:
+                    DATABASES[db](size, OPERATIONS[args.operation])
+                    print(f"Completed: {db} - {size:,} (trial {trial})")
+                except Exception as e:
+                    print(f"Error running {db} with size {size} on trial {trial}: {e}")
+                    import traceback
 
-                traceback.print_exc()
+                    traceback.print_exc()
 
     print(f"\n{'=' * 50}")
     print("All benchmarks completed!")
