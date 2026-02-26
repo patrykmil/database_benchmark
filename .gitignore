@@ -9,3 +9,8 @@ __pycache__/
 
 *.db
 *.unqlite
+*.sqlite
+
+.vscode/
+.idea/
+*explain*.csv
