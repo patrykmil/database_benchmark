@@ -9,3 +9,5 @@ __pycache__/
 
 *.db
 *.unqlite
+benchmark.unqlite_unqlite_journal
+results/*.csv
