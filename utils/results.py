@@ -21,6 +21,7 @@ def init_csv():
                     "time_ms",
                     "elements",
                     "trial",
+                    "status",
                     "timestamp",
                 ]
             )
@@ -53,6 +54,9 @@ def build_summary_csv():
         reader = csv.DictReader(f)
         for row in reader:
             try:
+                status = row.get("status", "ok")
+                if status != "ok":
+                    continue
                 key = (row["database"], row["operation"], int(row["size"]))
                 grouped[key].append(float(row["time_ms"]))
             except (KeyError, ValueError, TypeError):
@@ -82,7 +86,11 @@ def build_summary_csv():
             )
 
 
-def save_result(database, operation, size, time_ms, elements, trial=1):
+def save_result(database, operation, size, time_ms, elements, trial=1, status="ok"):
+    serialized_time = ""
+    if time_ms is not None:
+        serialized_time = round(time_ms, 2)
+
     with open(CSV_FILE, "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
@@ -90,15 +98,22 @@ def save_result(database, operation, size, time_ms, elements, trial=1):
                 database,
                 operation,
                 size,
-                round(time_ms, 2),
+                serialized_time,
                 elements,
                 trial,
+                status,
                 datetime.now().isoformat(),
             ]
         )
 
 
-def save_explain_result(database, query_name, plan_text, execution_time, trial=1):
+def save_explain_result(
+    database, query_name, plan_text, execution_time, trial=1, status="ok"
+):
+    serialized_time = ""
+    if execution_time is not None:
+        serialized_time = round(execution_time, 2)
+
     explain_file = (
         f"results/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
     )
@@ -106,15 +121,24 @@ def save_explain_result(database, query_name, plan_text, execution_time, trial=1
     with open(explain_file, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
-            ["database", "query", "plan", "execution_time_ms", "trial", "timestamp"]
+            [
+                "database",
+                "query",
+                "plan",
+                "execution_time_ms",
+                "trial",
+                "status",
+                "timestamp",
+            ]
         )
         writer.writerow(
             [
                 database,
                 query_name,
                 plan_text,
-                round(execution_time, 2),
+                serialized_time,
                 trial,
+                status,
                 datetime.now().isoformat(),
             ]
         )

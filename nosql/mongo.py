@@ -57,6 +57,8 @@ class MongoBenchmark:
 
         for name, query_func in NONINDEXED_OPERATIONS.items():
             start = time.time()
+            status = "ok"
+            elapsed = None
 
             if name == "insert_single":
                 doc = query_func()
@@ -109,11 +111,9 @@ class MongoBenchmark:
                 update_doc = query_func()
                 self.db.users.update_many({"_id": {"$in": [1, 2, 3]}}, update_doc)
             elif name == "update_case":
-                update_doc = query_func()
-                pass
+                status = "unsupported"
             elif name == "update_join":
-                update_doc = query_func()
-                pass
+                status = "unsupported"
             elif name == "update_upsert":
                 doc = query_func()
                 self.db.products.update_one(
@@ -132,14 +132,14 @@ class MongoBenchmark:
                 doc_filter = query_func()
                 self.db.orders.delete_many(doc_filter)
             elif name == "delete_join":
-                pipeline = query_func()
-                pass
+                status = "unsupported"
             elif name == "delete_truncate":
                 self.db.addresses.delete_many({})
 
-            elapsed = (time.time() - start) * 1000
+            if status == "ok":
+                elapsed = (time.time() - start) * 1000
             results[name] = elapsed
-            save_result("mongo", name, size, elapsed, size, trial=trial)
+            save_result("mongo", name, size, elapsed, size, trial=trial, status=status)
 
         return results
 
@@ -148,6 +148,8 @@ class MongoBenchmark:
 
         for name, query_func in INDEXED_OPERATIONS.items():
             start = time.time()
+            status = "ok"
+            elapsed = None
 
             if name == "index_insert_single":
                 doc = query_func()
@@ -202,10 +204,9 @@ class MongoBenchmark:
                     {"category_id": {"$in": [1, 2, 3]}}, update_doc
                 )
             elif name == "index_update_case":
-                pass
+                status = "unsupported"
             elif name == "index_update_join":
-                update_doc = query_func()
-                pass
+                status = "unsupported"
             elif name == "index_update_upsert":
                 doc = query_func()
                 self.db.products.update_one(
@@ -224,14 +225,14 @@ class MongoBenchmark:
                 doc_filter = query_func()
                 self.db.orders.delete_many(doc_filter)
             elif name == "index_delete_join":
-                pipeline = query_func()
-                pass
+                status = "unsupported"
             elif name == "index_delete_truncate":
                 self.db.addresses.delete_many({})
 
-            elapsed = (time.time() - start) * 1000
+            if status == "ok":
+                elapsed = (time.time() - start) * 1000
             results[name] = elapsed
-            save_result("mongo", name, size, elapsed, size, trial=trial)
+            save_result("mongo", name, size, elapsed, size, trial=trial, status=status)
 
         return results
 
