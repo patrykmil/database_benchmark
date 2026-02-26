@@ -29,6 +29,9 @@ SIZES_MAP = {
     "500000": 500_000,
     "1000000": 1_000_000,
     "10000000": 10_000_000,
+    "small": 500_000,
+    "medium": 1_000_000,
+    "large": 10_000_000,
     "all": "all",
 }
 
@@ -49,8 +52,12 @@ def main():
     )
     parser.add_argument(
         "--size",
+        choices=list(SIZES_MAP.keys()),
         default="all",
-        help="Size of test data (500000, 1000000, 10000000, or all)",
+        help=(
+            "Size profile: small/medium/large "
+            "(500000/1000000/10000000), exact numeric value, or all"
+        ),
     )
     parser.add_argument(
         "--trials",
