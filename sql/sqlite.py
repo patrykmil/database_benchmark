@@ -210,6 +210,7 @@ def run_sqlite_benchmark(size, operation_type="all", trial=1):
         if operation_type in ["all", "indexed"]:
             bench.setup_schema(create_indexes=True)
             bench.setup_reference_data()
+            bench.bulk_insert_users(size)
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["all", "explain"]:

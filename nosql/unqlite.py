@@ -346,20 +346,30 @@ class UnqliteBenchmark:
 
 def run_unqlite_benchmark(size, operation_type="all", trial=1):
     bench = UnqliteBenchmark()
-    bench.connect()
 
     try:
         if operation_type in ["all", "nonindexed"]:
+            bench.close()
+            bench.connect()
             bench.bulk_insert("users", size, generate_bulk_users)
             bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
+            bench.close()
+            bench.connect()
+            bench.bulk_insert("users", size, generate_bulk_users)
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["all", "explain"]:
+            bench.close()
+            bench.connect()
+            bench.bulk_insert("users", size, generate_bulk_users)
             bench.run_explain_queries(trial=trial)
 
         if operation_type in ["all", "json"]:
+            bench.close()
+            bench.connect()
+            bench.bulk_insert("users", size, generate_bulk_users)
             bench.run_json_queries(size, trial=trial)
 
     finally:

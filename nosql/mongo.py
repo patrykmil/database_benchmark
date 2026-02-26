@@ -325,6 +325,7 @@ def run_mongo_benchmark(size, operation_type="all", trial=1):
 
         if operation_type in ["all", "indexed"]:
             bench.setup_collections(create_indexes=True)
+            bench.bulk_insert("users", size, generate_bulk_users)
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["all", "explain"]:
