@@ -6,7 +6,7 @@ from nosql.mongo import run_mongo_benchmark
 from nosql.unqlite import run_unqlite_benchmark
 from sql.postgres import run_postgres_benchmark
 from sql.sqlite import run_sqlite_benchmark
-from utils.results import init_csv
+from utils.results import build_summary_csv, init_csv
 
 DATABASES = {
     "postgres": run_postgres_benchmark,
@@ -94,6 +94,8 @@ def main():
     print(f"\n{'=' * 50}")
     print("All benchmarks completed!")
     print("Results saved to: results/benchmark_results.csv")
+    build_summary_csv()
+    print("Summary saved to: results/benchmark_summary.csv")
     print(f"{'=' * 50}")
 
 
