@@ -41,11 +41,30 @@ class UnqliteBenchmark:
             rid = col.store(doc)
             self.record_ids.append(rid)
 
-    def run_nonindexed_queries(self, size):
+    def run_nonindexed_queries(self, size, trial=1):
         results = {}
+        unsupported_nonindexed = {
+            "select_join",
+            "select_distinct",
+            "update_case",
+            "update_join",
+            "delete_in",
+            "delete_cascade",
+            "delete_join",
+        }
 
         for name in NONINDEXED_OPERATIONS.keys():
-            elapsed = 0
+            elapsed = None
+            status = "ok"
+
+            if name in unsupported_nonindexed:
+                status = "unsupported"
+                results[name] = elapsed
+                save_result(
+                    "unqlite", name, size, elapsed, size, trial=trial, status=status
+                )
+                continue
+
             if name == "insert_single":
                 user = {
                     "name": "test_user",
@@ -118,8 +137,6 @@ class UnqliteBenchmark:
                 start = time.time()
                 list(col.filter(lambda doc: "test" in doc.get("email", "")))
                 elapsed = (time.time() - start) * 1000
-            elif name == "select_join":
-                elapsed = 0
             elif name == "select_aggregate":
                 col = self._get_collection("orders")
                 start = time.time()
@@ -130,8 +147,6 @@ class UnqliteBenchmark:
                 start = time.time()
                 list(col.all()[:10])
                 elapsed = (time.time() - start) * 1000
-            elif name == "select_distinct":
-                elapsed = 0
             elif name == "update_single":
                 col = self._get_collection("users")
                 start = time.time()
@@ -150,10 +165,6 @@ class UnqliteBenchmark:
                 for rid in self.record_ids[:3]:
                     col.update(rid, {"verified": True})
                 elapsed = (time.time() - start) * 1000
-            elif name == "update_case":
-                elapsed = 0
-            elif name == "update_join":
-                elapsed = 0
             elif name == "update_upsert":
                 col = self._get_collection("products")
                 if not col.exists():
@@ -172,12 +183,6 @@ class UnqliteBenchmark:
                 start = time.time()
                 list(col.filter(lambda doc: doc.get("created_at", "") < "2020-01-01"))
                 elapsed = (time.time() - start) * 1000
-            elif name == "delete_in":
-                elapsed = 0
-            elif name == "delete_cascade":
-                elapsed = 0
-            elif name == "delete_join":
-                elapsed = 0
             elif name == "delete_truncate":
                 col = self._get_collection("addresses")
                 if col.exists():
@@ -186,18 +191,47 @@ class UnqliteBenchmark:
                         col.delete(doc._id)
                     elapsed = (time.time() - start) * 1000
                 else:
-                    elapsed = 0
+                    status = "unsupported"
+            else:
+                status = "unsupported"
 
             results[name] = elapsed
-            save_result("unqlite", name, size, elapsed, size)
+            save_result(
+                "unqlite", name, size, elapsed, size, trial=trial, status=status
+            )
 
         return results
 
-    def run_indexed_queries(self, size):
+    def run_indexed_queries(self, size, trial=1):
         results = {}
+        unsupported_indexed = {
+            "index_select_join",
+            "index_select_aggregate",
+            "index_select_pagination",
+            "index_select_distinct",
+            "index_update_many",
+            "index_update_in",
+            "index_update_case",
+            "index_update_join",
+            "index_update_upsert",
+            "index_delete_in",
+            "index_delete_cascade",
+            "index_delete_join",
+            "index_delete_truncate",
+        }
 
         for name in INDEXED_OPERATIONS.keys():
-            elapsed = 0
+            elapsed = None
+            status = "ok"
+
+            if name in unsupported_indexed:
+                status = "unsupported"
+                results[name] = elapsed
+                save_result(
+                    "unqlite", name, size, elapsed, size, trial=trial, status=status
+                )
+                continue
+
             if name == "index_insert_single":
                 col = self._get_collection("users")
                 if not col.exists():
@@ -252,35 +286,11 @@ class UnqliteBenchmark:
                 start = time.time()
                 list(col.filter(lambda doc: doc.get("created_at", "") >= "2024-01-01"))
                 elapsed = (time.time() - start) * 1000
-            elif name == "index_select_join":
-                elapsed = 0
-            elif name == "index_select_aggregate":
-                elapsed = 0
-            elif name == "index_select_pagination":
-                col = self._get_collection("orders")
-                if col.exists():
-                    start = time.time()
-                    list(col.all()[:10])
-                    elapsed = (time.time() - start) * 1000
-                else:
-                    elapsed = 0
-            elif name == "index_select_distinct":
-                elapsed = 0
             elif name == "index_update_single":
                 col = self._get_collection("users")
                 start = time.time()
                 list(col.filter(lambda doc: doc.get("email") == "user1@example.com"))
                 elapsed = (time.time() - start) * 1000
-            elif name == "index_update_many":
-                elapsed = 0
-            elif name == "index_update_in":
-                elapsed = 0
-            elif name == "index_update_case":
-                elapsed = 0
-            elif name == "index_update_join":
-                elapsed = 0
-            elif name == "index_update_upsert":
-                elapsed = 0
             elif name == "index_delete_single":
                 col = self._get_collection("users")
                 start = time.time()
@@ -291,57 +301,76 @@ class UnqliteBenchmark:
                 start = time.time()
                 list(col.filter(lambda doc: doc.get("created_at", "") < "2020-01-01"))
                 elapsed = (time.time() - start) * 1000
-            elif name == "index_delete_in":
-                elapsed = 0
-            elif name == "index_delete_cascade":
-                elapsed = 0
-            elif name == "index_delete_join":
-                elapsed = 0
-            elif name == "index_delete_truncate":
-                elapsed = 0
+            else:
+                status = "unsupported"
 
             results[name] = elapsed
-            save_result("unqlite", name, size, elapsed, size)
+            save_result(
+                "unqlite", name, size, elapsed, size, trial=trial, status=status
+            )
 
         return results
 
-    def run_explain_queries(self):
+    def run_explain_queries(self, trial=1):
         for name in EXPLAIN_OPERATIONS.keys():
-            start = time.time()
             plan_text = f"explain_{name}"
-            elapsed = (time.time() - start) * 1000
-            save_explain_result("unqlite", name, plan_text, elapsed)
+            save_explain_result(
+                "unqlite",
+                name,
+                plan_text,
+                None,
+                trial=trial,
+                status="unsupported",
+            )
 
         return True
 
-    def run_json_queries(self, size):
+    def run_json_queries(self, size, trial=1):
         results = {}
 
         for name in JSON_OPERATIONS.keys():
-            elapsed = 0
+            elapsed = None
             results[name] = elapsed
-            save_result("unqlite", f"json_{name}", size, elapsed, size)
+            save_result(
+                "unqlite",
+                f"json_{name}",
+                size,
+                elapsed,
+                size,
+                trial=trial,
+                status="unsupported",
+            )
 
         return results
 
 
-def run_unqlite_benchmark(size, operation_type="all"):
+def run_unqlite_benchmark(size, operation_type="all", trial=1):
     bench = UnqliteBenchmark()
-    bench.connect()
 
     try:
         if operation_type in ["all", "nonindexed"]:
+            bench.close()
+            bench.connect()
             bench.bulk_insert("users", size, generate_bulk_users)
-            bench.run_nonindexed_queries(size)
+            bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
-            bench.run_indexed_queries(size)
+            bench.close()
+            bench.connect()
+            bench.bulk_insert("users", size, generate_bulk_users)
+            bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["all", "explain"]:
-            bench.run_explain_queries()
+            bench.close()
+            bench.connect()
+            bench.bulk_insert("users", size, generate_bulk_users)
+            bench.run_explain_queries(trial=trial)
 
         if operation_type in ["all", "json"]:
-            bench.run_json_queries(size)
+            bench.close()
+            bench.connect()
+            bench.bulk_insert("users", size, generate_bulk_users)
+            bench.run_json_queries(size, trial=trial)
 
     finally:
         bench.close()

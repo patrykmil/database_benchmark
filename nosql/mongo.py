@@ -52,11 +52,13 @@ class MongoBenchmark:
         docs = generator_func(count)
         getattr(self.db, collection).insert_many(docs)
 
-    def run_nonindexed_queries(self, size):
+    def run_nonindexed_queries(self, size, trial=1):
         results = {}
 
         for name, query_func in NONINDEXED_OPERATIONS.items():
             start = time.time()
+            status = "ok"
+            elapsed = None
 
             if name == "insert_single":
                 doc = query_func()
@@ -109,11 +111,9 @@ class MongoBenchmark:
                 update_doc = query_func()
                 self.db.users.update_many({"_id": {"$in": [1, 2, 3]}}, update_doc)
             elif name == "update_case":
-                update_doc = query_func()
-                pass
+                status = "unsupported"
             elif name == "update_join":
-                update_doc = query_func()
-                pass
+                status = "unsupported"
             elif name == "update_upsert":
                 doc = query_func()
                 self.db.products.update_one(
@@ -132,22 +132,24 @@ class MongoBenchmark:
                 doc_filter = query_func()
                 self.db.orders.delete_many(doc_filter)
             elif name == "delete_join":
-                pipeline = query_func()
-                pass
+                status = "unsupported"
             elif name == "delete_truncate":
                 self.db.addresses.delete_many({})
 
-            elapsed = (time.time() - start) * 1000
+            if status == "ok":
+                elapsed = (time.time() - start) * 1000
             results[name] = elapsed
-            save_result("mongo", name, size, elapsed, size)
+            save_result("mongo", name, size, elapsed, size, trial=trial, status=status)
 
         return results
 
-    def run_indexed_queries(self, size):
+    def run_indexed_queries(self, size, trial=1):
         results = {}
 
         for name, query_func in INDEXED_OPERATIONS.items():
             start = time.time()
+            status = "ok"
+            elapsed = None
 
             if name == "index_insert_single":
                 doc = query_func()
@@ -202,10 +204,9 @@ class MongoBenchmark:
                     {"category_id": {"$in": [1, 2, 3]}}, update_doc
                 )
             elif name == "index_update_case":
-                pass
+                status = "unsupported"
             elif name == "index_update_join":
-                update_doc = query_func()
-                pass
+                status = "unsupported"
             elif name == "index_update_upsert":
                 doc = query_func()
                 self.db.products.update_one(
@@ -224,18 +225,18 @@ class MongoBenchmark:
                 doc_filter = query_func()
                 self.db.orders.delete_many(doc_filter)
             elif name == "index_delete_join":
-                pipeline = query_func()
-                pass
+                status = "unsupported"
             elif name == "index_delete_truncate":
                 self.db.addresses.delete_many({})
 
-            elapsed = (time.time() - start) * 1000
+            if status == "ok":
+                elapsed = (time.time() - start) * 1000
             results[name] = elapsed
-            save_result("mongo", name, size, elapsed, size)
+            save_result("mongo", name, size, elapsed, size, trial=trial, status=status)
 
         return results
 
-    def run_explain_queries(self):
+    def run_explain_queries(self, trial=1):
         for name, query_func in EXPLAIN_OPERATIONS.items():
             start = time.time()
             plan_text = ""
@@ -294,11 +295,11 @@ class MongoBenchmark:
                 list(self.db.users.aggregate(pipeline))
 
             elapsed = (time.time() - start) * 1000
-            save_explain_result("mongo", name, plan_text, elapsed)
+            save_explain_result("mongo", name, plan_text, elapsed, trial=trial)
 
         return True
 
-    def run_json_queries(self, size):
+    def run_json_queries(self, size, trial=1):
         results = {}
 
         for name, query_func in JSON_OPERATIONS.items():
@@ -307,12 +308,12 @@ class MongoBenchmark:
             list(self.db.users.find(doc_filter))
             elapsed = (time.time() - start) * 1000
             results[name] = elapsed
-            save_result("mongo", f"json_{name}", size, elapsed, size)
+            save_result("mongo", f"json_{name}", size, elapsed, size, trial=trial)
 
         return results
 
 
-def run_mongo_benchmark(size, operation_type="all"):
+def run_mongo_benchmark(size, operation_type="all", trial=1):
     bench = MongoBenchmark()
     bench.connect()
 
@@ -320,17 +321,18 @@ def run_mongo_benchmark(size, operation_type="all"):
         if operation_type in ["all", "nonindexed"]:
             bench.setup_collections(create_indexes=False)
             bench.bulk_insert("users", size, generate_bulk_users)
-            bench.run_nonindexed_queries(size)
+            bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
             bench.setup_collections(create_indexes=True)
-            bench.run_indexed_queries(size)
+            bench.bulk_insert("users", size, generate_bulk_users)
+            bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["all", "explain"]:
-            bench.run_explain_queries()
+            bench.run_explain_queries(trial=trial)
 
         if operation_type in ["all", "json"]:
-            bench.run_json_queries(size)
+            bench.run_json_queries(size, trial=trial)
 
     finally:
         bench.close()

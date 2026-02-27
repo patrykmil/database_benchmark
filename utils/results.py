@@ -1,8 +1,11 @@
 import csv
 import os
+from collections import defaultdict
 from datetime import datetime
 
 from config import CSV_FILE
+
+SUMMARY_CSV_FILE = "results/benchmark_summary.csv"
 
 
 def init_csv():
@@ -11,11 +14,83 @@ def init_csv():
         with open(CSV_FILE, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
-                ["database", "operation", "size", "time_ms", "elements", "timestamp"]
+                [
+                    "database",
+                    "operation",
+                    "size",
+                    "time_ms",
+                    "elements",
+                    "trial",
+                    "status",
+                    "timestamp",
+                ]
             )
 
 
-def save_result(database, operation, size, time_ms, elements):
+def init_summary_csv():
+    os.makedirs(os.path.dirname(SUMMARY_CSV_FILE), exist_ok=True)
+    with open(SUMMARY_CSV_FILE, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            [
+                "database",
+                "operation",
+                "size",
+                "avg_time_ms",
+                "min_time_ms",
+                "max_time_ms",
+                "samples_count",
+                "generated_at",
+            ]
+        )
+
+
+def build_summary_csv():
+    if not os.path.exists(CSV_FILE):
+        return
+
+    grouped = defaultdict(list)
+    with open(CSV_FILE, "r", newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            try:
+                status = row.get("status", "ok")
+                if status != "ok":
+                    continue
+                key = (row["database"], row["operation"], int(row["size"]))
+                grouped[key].append(float(row["time_ms"]))
+            except (KeyError, ValueError, TypeError):
+                continue
+
+    init_summary_csv()
+
+    generated_at = datetime.now().isoformat()
+    with open(SUMMARY_CSV_FILE, "a", newline="") as f:
+        writer = csv.writer(f)
+        for database, operation, size in sorted(grouped.keys()):
+            times = grouped[(database, operation, size)]
+            if not times:
+                continue
+            avg_time = sum(times) / len(times)
+            writer.writerow(
+                [
+                    database,
+                    operation,
+                    size,
+                    round(avg_time, 2),
+                    round(min(times), 2),
+                    round(max(times), 2),
+                    len(times),
+                    generated_at,
+                ]
+            )
+
+
+def save_result(database, operation, size, time_ms, elements, trial=1, status="ok"):
+    serialized_time = ""
+    if time_ms is not None:
+        serialized_time = round(time_ms, 2)
+
     with open(CSV_FILE, "a", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
@@ -23,19 +98,47 @@ def save_result(database, operation, size, time_ms, elements):
                 database,
                 operation,
                 size,
-                round(time_ms, 2),
+                serialized_time,
                 elements,
+                trial,
+                status,
                 datetime.now().isoformat(),
             ]
         )
 
 
-def save_explain_result(database, query_name, plan_text, execution_time):
+def save_explain_result(
+    database, query_name, plan_text, execution_time, trial=1, status="ok"
+):
+    serialized_time = ""
+    if execution_time is not None:
+        serialized_time = round(execution_time, 2)
+
     explain_file = (
-        f"results/{database}_explain_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        f"results/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
     )
     os.makedirs("results", exist_ok=True)
     with open(explain_file, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["database", "query", "plan", "execution_time_ms"])
-        writer.writerow([database, query_name, plan_text, round(execution_time, 2)])
+        writer.writerow(
+            [
+                "database",
+                "query",
+                "plan",
+                "execution_time_ms",
+                "trial",
+                "status",
+                "timestamp",
+            ]
+        )
+        writer.writerow(
+            [
+                database,
+                query_name,
+                plan_text,
+                serialized_time,
+                trial,
+                status,
+                datetime.now().isoformat(),
+            ]
+        )
