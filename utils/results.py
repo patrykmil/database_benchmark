@@ -115,8 +115,8 @@ def save_explain_result(
     if execution_time is not None:
         serialized_time = round(execution_time, 2)
 
-    explain_file = f"results/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
-    os.makedirs("results", exist_ok=True)
+    explain_file = f"results/explain/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
+    os.makedirs("results/explain", exist_ok=True)
     with open(explain_file, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(
