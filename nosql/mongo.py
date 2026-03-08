@@ -84,9 +84,16 @@ class MongoBenchmark:
 
     def needs_starting_data_refresh(self, target_size):
         current_size = self.get_total_record_count()
+        need = False
         if current_size is None:
-            return True
-        return abs(current_size - target_size) > (target_size * 0.05)
+            need = True
+        if abs(current_size - target_size) > (target_size * 0.05):
+            need = True
+        if need:
+            print(
+                f"Current total record count {current_size:_} differs from target {target_size:_} by more than 5%, refreshing data."
+            )
+        return need
 
     def populate_starting_data(self, total_records):
         counts = split_starting_data(total_records)
@@ -103,9 +110,7 @@ class MongoBenchmark:
         for idx, warehouse in enumerate(warehouses, start=1):
             warehouse["_id"] = idx
 
-        products = generate_bulk_products(
-            counts["products"], list(range(1, counts["categories"] + 1))
-        )
+        products = generate_bulk_products(counts["products"], list(range(1, counts["categories"] + 1)))
         for idx, product in enumerate(products, start=1):
             product["_id"] = idx
 
@@ -113,21 +118,15 @@ class MongoBenchmark:
         for idx, order in enumerate(orders, start=1):
             order["_id"] = idx
 
-        order_items = generate_bulk_order_items(
-            counts["order_items"], counts["orders"], counts["products"]
-        )
+        order_items = generate_bulk_order_items(counts["order_items"], counts["orders"], counts["products"])
         for idx, item in enumerate(order_items, start=1):
             item["_id"] = idx
 
-        reviews = generate_bulk_reviews(
-            counts["reviews"], counts["users"], counts["products"]
-        )
+        reviews = generate_bulk_reviews(counts["reviews"], counts["users"], counts["products"])
         for idx, review in enumerate(reviews, start=1):
             review["_id"] = idx
 
-        inventory = generate_bulk_inventory(
-            counts["inventory"], counts["products"], counts["warehouses"]
-        )
+        inventory = generate_bulk_inventory(counts["inventory"], counts["products"], counts["warehouses"])
         for idx, record in enumerate(inventory, start=1):
             record["_id"] = idx
 
@@ -190,9 +189,7 @@ class MongoBenchmark:
                     pass
             elif name == "insert_upsert":
                 doc = query_func()
-                self.db.users.update_one(
-                    {"email": "test@example.com"}, doc, upsert=True
-                )
+                self.db.users.update_one({"email": "test@example.com"}, doc, upsert=True)
             elif name == "insert_many":
                 docs = query_func()
                 self.db.categories.insert_many(docs)
@@ -232,9 +229,7 @@ class MongoBenchmark:
                 status = "unsupported"
             elif name == "update_upsert":
                 doc = query_func()
-                self.db.products.update_one(
-                    {"name": "upsert_product"}, {"$set": doc}, upsert=True
-                )
+                self.db.products.update_one({"name": "upsert_product"}, {"$set": doc}, upsert=True)
             elif name == "delete_single":
                 doc_filter = query_func(999999)
                 self.db.users.delete_one(doc_filter)
@@ -281,9 +276,7 @@ class MongoBenchmark:
                     pass
             elif name == "index_insert_upsert":
                 doc = query_func()
-                self.db.products.update_one(
-                    {"name": "upsert_product"}, {"$set": doc}, upsert=True
-                )
+                self.db.products.update_one({"name": "upsert_product"}, {"$set": doc}, upsert=True)
             elif name == "index_insert_many":
                 docs = query_func()
                 self.db.products.insert_many(docs)
@@ -316,18 +309,14 @@ class MongoBenchmark:
                 self.db.products.update_many({"category_id": 1}, update_doc)
             elif name == "index_update_in":
                 update_doc = query_func()
-                self.db.products.update_many(
-                    {"category_id": {"$in": [1, 2, 3]}}, update_doc
-                )
+                self.db.products.update_many({"category_id": {"$in": [1, 2, 3]}}, update_doc)
             elif name == "index_update_case":
                 status = "unsupported"
             elif name == "index_update_join":
                 status = "unsupported"
             elif name == "index_update_upsert":
                 doc = query_func()
-                self.db.products.update_one(
-                    {"name": "existing_product"}, {"$set": doc}, upsert=True
-                )
+                self.db.products.update_one({"name": "existing_product"}, {"$set": doc}, upsert=True)
             elif name == "index_delete_single":
                 doc_filter = query_func()
                 self.db.users.delete_one(doc_filter)
