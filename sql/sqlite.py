@@ -42,6 +42,63 @@ class SQLiteBenchmark:
                     cur.execute(stmt)
         self.conn.commit()
 
+    def _users_table_exists(self):
+        cur = self.conn.cursor()
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+        )
+        return cur.fetchone() is not None
+
+    def get_user_count(self):
+        if not self._users_table_exists():
+            return None
+
+        cur = self.conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM users")
+        return cur.fetchone()[0]
+
+    def needs_starting_data_refresh(self, target_size):
+        current_size = self.get_user_count()
+        if current_size is None:
+            return True
+        return abs(current_size - target_size) > (target_size * 0.05)
+
+    def ensure_indexes(self):
+        cur = self.conn.cursor()
+        for stmt in SQLITE_INDEXES.split(";"):
+            if stmt.strip():
+                cur.execute(stmt)
+        self.conn.commit()
+
+    def drop_indexes(self):
+        cur = self.conn.cursor()
+        cur.execute("DROP INDEX IF EXISTS idx_users_email")
+        cur.execute("DROP INDEX IF EXISTS idx_users_created_at")
+        cur.execute("DROP INDEX IF EXISTS idx_products_category")
+        cur.execute("DROP INDEX IF EXISTS idx_products_price")
+        cur.execute("DROP INDEX IF EXISTS idx_orders_user")
+        cur.execute("DROP INDEX IF EXISTS idx_orders_status")
+        cur.execute("DROP INDEX IF EXISTS idx_orders_created")
+        cur.execute("DROP INDEX IF EXISTS idx_order_items_order")
+        cur.execute("DROP INDEX IF EXISTS idx_order_items_product")
+        cur.execute("DROP INDEX IF EXISTS idx_reviews_product")
+        cur.execute("DROP INDEX IF EXISTS idx_reviews_user")
+        cur.execute("DROP INDEX IF EXISTS idx_inventory_product")
+        cur.execute("DROP INDEX IF EXISTS idx_inventory_warehouse")
+        cur.execute("DROP INDEX IF EXISTS idx_addresses_user")
+        cur.execute("DROP INDEX IF EXISTS idx_payments_order")
+        self.conn.commit()
+
+    def ensure_reference_data(self):
+        cur = self.conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM categories")
+        categories_count = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM warehouses")
+        warehouses_count = cur.fetchone()[0]
+
+        if categories_count == 0 or warehouses_count == 0:
+            self.setup_reference_data()
+
     def setup_reference_data(self):
         cur = self.conn.cursor()
         cur.execute(
@@ -203,14 +260,21 @@ def run_sqlite_benchmark(size, operation_type="all", trial=1):
 
     try:
         if operation_type in ["all", "nonindexed"]:
-            bench.setup_schema(create_indexes=False)
-            bench.bulk_insert_users(size)
+            if bench.needs_starting_data_refresh(size):
+                bench.setup_schema(create_indexes=False)
+                bench.bulk_insert_users(size)
+            else:
+                bench.drop_indexes()
             bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
-            bench.setup_schema(create_indexes=True)
-            bench.setup_reference_data()
-            bench.bulk_insert_users(size)
+            if bench.needs_starting_data_refresh(size):
+                bench.setup_schema(create_indexes=True)
+                bench.setup_reference_data()
+                bench.bulk_insert_users(size)
+            else:
+                bench.ensure_indexes()
+                bench.ensure_reference_data()
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["explain"]:

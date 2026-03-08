@@ -48,6 +48,31 @@ class MongoBenchmark:
             self.db.orders.create_index("status")
             self.db.orders.create_index("created_at")
 
+    def get_user_count(self):
+        if "users" not in self.db.list_collection_names():
+            return None
+        return self.db.users.count_documents({})
+
+    def needs_starting_data_refresh(self, target_size):
+        current_size = self.get_user_count()
+        if current_size is None:
+            return True
+        return abs(current_size - target_size) > (target_size * 0.05)
+
+    def ensure_indexes(self):
+        self.db.users.create_index("email")
+        self.db.users.create_index("created_at")
+        self.db.products.create_index("category_id")
+        self.db.products.create_index("price")
+        self.db.orders.create_index("user_id")
+        self.db.orders.create_index("status")
+        self.db.orders.create_index("created_at")
+
+    def drop_indexes(self):
+        for collection_name in ["users", "products", "orders"]:
+            if collection_name in self.db.list_collection_names():
+                getattr(self.db, collection_name).drop_indexes()
+
     def bulk_insert(self, collection, count, generator_func):
         docs = generator_func(count)
         getattr(self.db, collection).insert_many(docs)
@@ -74,7 +99,9 @@ class MongoBenchmark:
                     pass
             elif name == "insert_upsert":
                 doc = query_func()
-                self.db.users.update_one({"email": "test@example.com"}, doc, upsert=True)
+                self.db.users.update_one(
+                    {"email": "test@example.com"}, doc, upsert=True
+                )
             elif name == "insert_many":
                 docs = query_func()
                 self.db.categories.insert_many(docs)
@@ -114,7 +141,9 @@ class MongoBenchmark:
                 status = "unsupported"
             elif name == "update_upsert":
                 doc = query_func()
-                self.db.products.update_one({"name": "upsert_product"}, {"$set": doc}, upsert=True)
+                self.db.products.update_one(
+                    {"name": "upsert_product"}, {"$set": doc}, upsert=True
+                )
             elif name == "delete_single":
                 doc_filter = query_func(999999)
                 self.db.users.delete_one(doc_filter)
@@ -161,7 +190,9 @@ class MongoBenchmark:
                     pass
             elif name == "index_insert_upsert":
                 doc = query_func()
-                self.db.products.update_one({"name": "upsert_product"}, {"$set": doc}, upsert=True)
+                self.db.products.update_one(
+                    {"name": "upsert_product"}, {"$set": doc}, upsert=True
+                )
             elif name == "index_insert_many":
                 docs = query_func()
                 self.db.products.insert_many(docs)
@@ -194,14 +225,18 @@ class MongoBenchmark:
                 self.db.products.update_many({"category_id": 1}, update_doc)
             elif name == "index_update_in":
                 update_doc = query_func()
-                self.db.products.update_many({"category_id": {"$in": [1, 2, 3]}}, update_doc)
+                self.db.products.update_many(
+                    {"category_id": {"$in": [1, 2, 3]}}, update_doc
+                )
             elif name == "index_update_case":
                 status = "unsupported"
             elif name == "index_update_join":
                 status = "unsupported"
             elif name == "index_update_upsert":
                 doc = query_func()
-                self.db.products.update_one({"name": "existing_product"}, {"$set": doc}, upsert=True)
+                self.db.products.update_one(
+                    {"name": "existing_product"}, {"$set": doc}, upsert=True
+                )
             elif name == "index_delete_single":
                 doc_filter = query_func()
                 self.db.users.delete_one(doc_filter)
@@ -309,13 +344,19 @@ def run_mongo_benchmark(size, operation_type="all", trial=1):
 
     try:
         if operation_type in ["all", "nonindexed"]:
-            bench.setup_collections(create_indexes=False)
-            bench.bulk_insert("users", size, generate_bulk_users)
+            if bench.needs_starting_data_refresh(size):
+                bench.setup_collections(create_indexes=False)
+                bench.bulk_insert("users", size, generate_bulk_users)
+            else:
+                bench.drop_indexes()
             bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
-            bench.setup_collections(create_indexes=True)
-            bench.bulk_insert("users", size, generate_bulk_users)
+            if bench.needs_starting_data_refresh(size):
+                bench.setup_collections(create_indexes=True)
+                bench.bulk_insert("users", size, generate_bulk_users)
+            else:
+                bench.ensure_indexes()
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["explain"]:

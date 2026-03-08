@@ -45,6 +45,97 @@ class PostgresBenchmark:
             if create_indexes:
                 cur.execute(INDEXES)
 
+    def _users_table_exists(self):
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT to_regclass('public.users')")
+            return cur.fetchone()[0] is not None
+
+    def get_user_count(self):
+        if not self._users_table_exists():
+            return None
+
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM users")
+            return cur.fetchone()[0]
+
+    def needs_starting_data_refresh(self, target_size):
+        current_size = self.get_user_count()
+        if current_size is None:
+            return True
+        return abs(current_size - target_size) > (target_size * 0.05)
+
+    def ensure_indexes(self):
+        with self.conn.cursor() as cur:
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_products_price ON products(price)"
+            )
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_order_items_product ON order_items(product_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reviews_product ON reviews(product_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reviews_user ON reviews(user_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory(product_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_inventory_warehouse ON inventory(warehouse_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_addresses_user ON addresses(user_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)"
+            )
+
+    def drop_indexes(self):
+        with self.conn.cursor() as cur:
+            cur.execute("DROP INDEX IF EXISTS idx_users_email")
+            cur.execute("DROP INDEX IF EXISTS idx_users_created_at")
+            cur.execute("DROP INDEX IF EXISTS idx_products_category")
+            cur.execute("DROP INDEX IF EXISTS idx_products_price")
+            cur.execute("DROP INDEX IF EXISTS idx_orders_user")
+            cur.execute("DROP INDEX IF EXISTS idx_orders_status")
+            cur.execute("DROP INDEX IF EXISTS idx_orders_created")
+            cur.execute("DROP INDEX IF EXISTS idx_order_items_order")
+            cur.execute("DROP INDEX IF EXISTS idx_order_items_product")
+            cur.execute("DROP INDEX IF EXISTS idx_reviews_product")
+            cur.execute("DROP INDEX IF EXISTS idx_reviews_user")
+            cur.execute("DROP INDEX IF EXISTS idx_inventory_product")
+            cur.execute("DROP INDEX IF EXISTS idx_inventory_warehouse")
+            cur.execute("DROP INDEX IF EXISTS idx_addresses_user")
+            cur.execute("DROP INDEX IF EXISTS idx_payments_order")
+
+    def ensure_reference_data(self):
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM categories")
+            categories_count = cur.fetchone()[0]
+            cur.execute("SELECT COUNT(*) FROM warehouses")
+            warehouses_count = cur.fetchone()[0]
+
+        if categories_count == 0 or warehouses_count == 0:
+            self.setup_reference_data()
+
     def setup_reference_data(self):
         with self.conn.cursor() as cur:
             cur.execute(
@@ -68,7 +159,23 @@ class PostgresBenchmark:
                 template="(%s, %s, %s, %s)",
             )
 
+    def cleanup_benchmark_rows(self):
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM users
+                WHERE email IN (
+                    'single@example.com',
+                    'ignore@example.com',
+                    'upsert@example.com',
+                    'returning@example.com',
+                    'indexed@example.com'
+                )
+                """
+            )
+
     def run_nonindexed_queries(self, size, trial=1):
+        self.cleanup_benchmark_rows()
         results = {}
         for name, q in NONINDEXED_QUERIES.items():
             params = q["params"]()
@@ -114,6 +221,7 @@ class PostgresBenchmark:
         return results
 
     def run_indexed_queries(self, size, trial=1):
+        self.cleanup_benchmark_rows()
         results = {}
         for name, q in INDEXED_QUERIES.items():
             params = q["params"]()
@@ -191,14 +299,21 @@ def run_postgres_benchmark(size, operation_type="all", trial=1):
 
     try:
         if operation_type in ["all", "nonindexed"]:
-            bench.setup_schema(create_indexes=False)
-            bench.bulk_insert_users(size)
+            if bench.needs_starting_data_refresh(size):
+                bench.setup_schema(create_indexes=False)
+                bench.bulk_insert_users(size)
+            else:
+                bench.drop_indexes()
             bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
-            bench.setup_schema(create_indexes=True)
-            bench.setup_reference_data()
-            bench.bulk_insert_users(size)
+            if bench.needs_starting_data_refresh(size):
+                bench.setup_schema(create_indexes=True)
+                bench.setup_reference_data()
+                bench.bulk_insert_users(size)
+            else:
+                bench.ensure_indexes()
+                bench.ensure_reference_data()
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["explain"]:

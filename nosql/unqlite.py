@@ -21,9 +21,16 @@ class UnqliteBenchmark:
         self.record_ids = []
 
     def connect(self):
+        self.db = unqlite.UnQLite(self.config["database"])
+
+    def reset_database(self):
+        if self.db:
+            self.db.close()
+            self.db = None
         if os.path.exists(self.config["database"]):
             os.remove(self.config["database"])
-        self.db = unqlite.UnQLite(self.config["database"])
+        self.connect()
+        self.record_ids = []
 
     def close(self):
         if self.db:
@@ -40,6 +47,18 @@ class UnqliteBenchmark:
         for doc in docs:
             rid = col.store(doc)
             self.record_ids.append(rid)
+
+    def get_user_count(self):
+        col = self._get_collection("users")
+        if not col.exists():
+            return None
+        return len(col.all())
+
+    def needs_starting_data_refresh(self, target_size):
+        current_size = self.get_user_count()
+        if current_size is None:
+            return True
+        return abs(current_size - target_size) > (target_size * 0.05)
 
     def run_nonindexed_queries(self, size, trial=1):
         results = {}
@@ -346,30 +365,31 @@ class UnqliteBenchmark:
 
 def run_unqlite_benchmark(size, operation_type="all", trial=1):
     bench = UnqliteBenchmark()
+    bench.connect()
 
     try:
         if operation_type in ["all", "nonindexed"]:
-            bench.close()
-            bench.connect()
-            bench.bulk_insert("users", size, generate_bulk_users)
+            if bench.needs_starting_data_refresh(size):
+                bench.reset_database()
+                bench.bulk_insert("users", size, generate_bulk_users)
             bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
-            bench.close()
-            bench.connect()
-            bench.bulk_insert("users", size, generate_bulk_users)
+            if bench.needs_starting_data_refresh(size):
+                bench.reset_database()
+                bench.bulk_insert("users", size, generate_bulk_users)
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["explain"]:
-            bench.close()
-            bench.connect()
-            bench.bulk_insert("users", size, generate_bulk_users)
+            if bench.needs_starting_data_refresh(size):
+                bench.reset_database()
+                bench.bulk_insert("users", size, generate_bulk_users)
             bench.run_explain_queries(trial=trial)
 
         if operation_type in ["all", "json"]:
-            bench.close()
-            bench.connect()
-            bench.bulk_insert("users", size, generate_bulk_users)
+            if bench.needs_starting_data_refresh(size):
+                bench.reset_database()
+                bench.bulk_insert("users", size, generate_bulk_users)
             bench.run_json_queries(size, trial=trial)
 
     finally:
