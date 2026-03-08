@@ -6,6 +6,7 @@ from datetime import datetime
 from config import CSV_FILE
 
 SUMMARY_CSV_FILE = "results/benchmark_summary.csv"
+SUMMARY_LAST_SAMPLES = 3
 
 
 def init_csv():
@@ -68,7 +69,7 @@ def build_summary_csv():
     with open(SUMMARY_CSV_FILE, "a", newline="") as f:
         writer = csv.writer(f)
         for database, operation, size in sorted(grouped.keys()):
-            times = grouped[(database, operation, size)]
+            times = grouped[(database, operation, size)][-SUMMARY_LAST_SAMPLES:]
             if not times:
                 continue
             avg_time = sum(times) / len(times)
