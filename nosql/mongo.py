@@ -9,7 +9,19 @@ from nosql.queries import (
     JSON_OPERATIONS,
     NONINDEXED_OPERATIONS,
 )
-from utils.generator import generate_bulk_users
+from utils.generator import (
+    generate_bulk_addresses,
+    generate_bulk_categories,
+    generate_bulk_inventory,
+    generate_bulk_order_items,
+    generate_bulk_orders,
+    generate_bulk_payments,
+    generate_bulk_products,
+    generate_bulk_reviews,
+    generate_bulk_users,
+    generate_bulk_warehouses,
+    split_starting_data,
+)
 from utils.results import save_explain_result, save_result
 
 
@@ -48,16 +60,95 @@ class MongoBenchmark:
             self.db.orders.create_index("status")
             self.db.orders.create_index("created_at")
 
-    def get_user_count(self):
-        if "users" not in self.db.list_collection_names():
+    def get_total_record_count(self):
+        collections = [
+            "users",
+            "categories",
+            "products",
+            "orders",
+            "order_items",
+            "reviews",
+            "warehouses",
+            "inventory",
+            "addresses",
+            "payments",
+        ]
+        existing = set(self.db.list_collection_names())
+        if not all(name in existing for name in collections):
             return None
-        return self.db.users.count_documents({})
+
+        total = 0
+        for collection in collections:
+            total += getattr(self.db, collection).count_documents({})
+        return total
 
     def needs_starting_data_refresh(self, target_size):
-        current_size = self.get_user_count()
+        current_size = self.get_total_record_count()
         if current_size is None:
             return True
         return abs(current_size - target_size) > (target_size * 0.05)
+
+    def populate_starting_data(self, total_records):
+        counts = split_starting_data(total_records)
+
+        users = generate_bulk_users(counts["users"])
+        for idx, user in enumerate(users, start=1):
+            user["_id"] = idx
+
+        categories = generate_bulk_categories(counts["categories"])
+        for idx, category in enumerate(categories, start=1):
+            category["_id"] = idx
+
+        warehouses = generate_bulk_warehouses(counts["warehouses"])
+        for idx, warehouse in enumerate(warehouses, start=1):
+            warehouse["_id"] = idx
+
+        products = generate_bulk_products(
+            counts["products"], list(range(1, counts["categories"] + 1))
+        )
+        for idx, product in enumerate(products, start=1):
+            product["_id"] = idx
+
+        orders = generate_bulk_orders(counts["orders"], counts["users"])
+        for idx, order in enumerate(orders, start=1):
+            order["_id"] = idx
+
+        order_items = generate_bulk_order_items(
+            counts["order_items"], counts["orders"], counts["products"]
+        )
+        for idx, item in enumerate(order_items, start=1):
+            item["_id"] = idx
+
+        reviews = generate_bulk_reviews(
+            counts["reviews"], counts["users"], counts["products"]
+        )
+        for idx, review in enumerate(reviews, start=1):
+            review["_id"] = idx
+
+        inventory = generate_bulk_inventory(
+            counts["inventory"], counts["products"], counts["warehouses"]
+        )
+        for idx, record in enumerate(inventory, start=1):
+            record["_id"] = idx
+
+        addresses = generate_bulk_addresses(counts["addresses"], counts["users"])
+        for idx, address in enumerate(addresses, start=1):
+            address["_id"] = idx
+
+        payments = generate_bulk_payments(counts["payments"], counts["orders"])
+        for idx, payment in enumerate(payments, start=1):
+            payment["_id"] = idx
+
+        self.db.users.insert_many(users)
+        self.db.categories.insert_many(categories)
+        self.db.warehouses.insert_many(warehouses)
+        self.db.products.insert_many(products)
+        self.db.orders.insert_many(orders)
+        self.db.order_items.insert_many(order_items)
+        self.db.reviews.insert_many(reviews)
+        self.db.inventory.insert_many(inventory)
+        self.db.addresses.insert_many(addresses)
+        self.db.payments.insert_many(payments)
 
     def ensure_indexes(self):
         self.db.users.create_index("email")
@@ -346,7 +437,7 @@ def run_mongo_benchmark(size, operation_type="all", trial=1):
         if operation_type in ["all", "nonindexed"]:
             if bench.needs_starting_data_refresh(size):
                 bench.setup_collections(create_indexes=False)
-                bench.bulk_insert("users", size, generate_bulk_users)
+                bench.populate_starting_data(size)
             else:
                 bench.drop_indexes()
             bench.run_nonindexed_queries(size, trial=trial)
@@ -354,7 +445,7 @@ def run_mongo_benchmark(size, operation_type="all", trial=1):
         if operation_type in ["all", "indexed"]:
             if bench.needs_starting_data_refresh(size):
                 bench.setup_collections(create_indexes=True)
-                bench.bulk_insert("users", size, generate_bulk_users)
+                bench.populate_starting_data(size)
             else:
                 bench.ensure_indexes()
             bench.run_indexed_queries(size, trial=trial)

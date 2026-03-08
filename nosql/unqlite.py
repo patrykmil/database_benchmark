@@ -10,7 +10,19 @@ from nosql.queries import (
     JSON_OPERATIONS,
     NONINDEXED_OPERATIONS,
 )
-from utils.generator import generate_bulk_users
+from utils.generator import (
+    generate_bulk_addresses,
+    generate_bulk_categories,
+    generate_bulk_inventory,
+    generate_bulk_order_items,
+    generate_bulk_orders,
+    generate_bulk_payments,
+    generate_bulk_products,
+    generate_bulk_reviews,
+    generate_bulk_users,
+    generate_bulk_warehouses,
+    split_starting_data,
+)
 from utils.results import save_explain_result, save_result
 
 
@@ -37,6 +49,8 @@ class UnqliteBenchmark:
             self.db.close()
 
     def _get_collection(self, name):
+        if self.db is None:
+            raise RuntimeError("UnQLite is not connected")
         return self.db.collection(name)
 
     def bulk_insert(self, collection_name, count, generator_func):
@@ -48,17 +62,85 @@ class UnqliteBenchmark:
             rid = col.store(doc)
             self.record_ids.append(rid)
 
-    def get_user_count(self):
-        col = self._get_collection("users")
-        if not col.exists():
-            return None
-        return len(col.all())
+    def get_total_record_count(self):
+        collections = [
+            "users",
+            "categories",
+            "products",
+            "orders",
+            "order_items",
+            "reviews",
+            "warehouses",
+            "inventory",
+            "addresses",
+            "payments",
+        ]
+        total = 0
+        for name in collections:
+            col = self._get_collection(name)
+            if not col.exists():
+                return None
+            total += len(col.all())
+        return total
 
     def needs_starting_data_refresh(self, target_size):
-        current_size = self.get_user_count()
+        current_size = self.get_total_record_count()
         if current_size is None:
             return True
         return abs(current_size - target_size) > (target_size * 0.05)
+
+    def _bulk_store(self, collection_name, docs):
+        col = self._get_collection(collection_name)
+        if not col.exists():
+            col.create()
+        for doc in docs:
+            col.store(doc)
+
+    def populate_starting_data(self, total_records):
+        counts = split_starting_data(total_records)
+
+        users = generate_bulk_users(counts["users"])
+        for idx, user in enumerate(users, start=1):
+            user["id"] = idx
+
+        categories = generate_bulk_categories(counts["categories"])
+        warehouses = generate_bulk_warehouses(counts["warehouses"])
+
+        products = generate_bulk_products(
+            counts["products"], list(range(1, counts["categories"] + 1))
+        )
+        for idx, product in enumerate(products, start=1):
+            product["id"] = idx
+
+        orders = generate_bulk_orders(counts["orders"], counts["users"])
+        for idx, order in enumerate(orders, start=1):
+            order["id"] = idx
+
+        order_items = generate_bulk_order_items(
+            counts["order_items"], counts["orders"], counts["products"]
+        )
+
+        reviews = generate_bulk_reviews(
+            counts["reviews"], counts["users"], counts["products"]
+        )
+
+        inventory = generate_bulk_inventory(
+            counts["inventory"], counts["products"], counts["warehouses"]
+        )
+
+        addresses = generate_bulk_addresses(counts["addresses"], counts["users"])
+        payments = generate_bulk_payments(counts["payments"], counts["orders"])
+
+        self._bulk_store("users", users)
+        self._bulk_store("categories", categories)
+        self._bulk_store("warehouses", warehouses)
+        self._bulk_store("products", products)
+        self._bulk_store("orders", orders)
+        self._bulk_store("order_items", order_items)
+        self._bulk_store("reviews", reviews)
+        self._bulk_store("inventory", inventory)
+        self._bulk_store("addresses", addresses)
+        self._bulk_store("payments", payments)
 
     def run_nonindexed_queries(self, size, trial=1):
         results = {}
@@ -206,8 +288,8 @@ class UnqliteBenchmark:
                 col = self._get_collection("addresses")
                 if col.exists():
                     start = time.time()
-                    for doc in col.all():
-                        col.delete(doc._id)
+                    col.drop()
+                    col.create()
                     elapsed = (time.time() - start) * 1000
                 else:
                     status = "unsupported"
@@ -371,25 +453,25 @@ def run_unqlite_benchmark(size, operation_type="all", trial=1):
         if operation_type in ["all", "nonindexed"]:
             if bench.needs_starting_data_refresh(size):
                 bench.reset_database()
-                bench.bulk_insert("users", size, generate_bulk_users)
+                bench.populate_starting_data(size)
             bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
             if bench.needs_starting_data_refresh(size):
                 bench.reset_database()
-                bench.bulk_insert("users", size, generate_bulk_users)
+                bench.populate_starting_data(size)
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["explain"]:
             if bench.needs_starting_data_refresh(size):
                 bench.reset_database()
-                bench.bulk_insert("users", size, generate_bulk_users)
+                bench.populate_starting_data(size)
             bench.run_explain_queries(trial=trial)
 
         if operation_type in ["all", "json"]:
             if bench.needs_starting_data_refresh(size):
                 bench.reset_database()
-                bench.bulk_insert("users", size, generate_bulk_users)
+                bench.populate_starting_data(size)
             bench.run_json_queries(size, trial=trial)
 
     finally:
