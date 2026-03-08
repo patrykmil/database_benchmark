@@ -6,7 +6,7 @@ from nosql.mongo import run_mongo_benchmark
 from nosql.unqlite import run_unqlite_benchmark
 from sql.postgres import run_postgres_benchmark
 from sql.sqlite import run_sqlite_benchmark
-from utils.results import build_summary_csv, init_csv
+from utils.results import build_summary_csv, draw_summary_diagrams, init_csv
 
 DATABASES = {
     "postgres": run_postgres_benchmark,
@@ -41,7 +41,7 @@ def main():
     parser.add_argument(
         "--db",
         choices=list(DATABASES.keys()),
-        required=True,
+        default="all",
         help="Database to benchmark",
     )
     parser.add_argument(
@@ -65,6 +65,14 @@ def main():
         default=1,
         help="Number of independent benchmark trials per database and size",
     )
+    parser.add_argument(
+        "--draw",
+        action="store_true",
+        help=(
+            "Draw line diagrams from results/benchmark_summary.csv "
+            "and save to results/diagrams"
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -72,6 +80,17 @@ def main():
 
     if args.trials < 1:
         parser.error("--trials must be at least 1")
+
+    if args.draw:
+        diagrams = draw_summary_diagrams()
+        if not diagrams:
+            print("No summary data available to draw diagrams.")
+            return
+
+        print(f"Generated {len(diagrams)} diagrams:")
+        for path in diagrams:
+            print(f"- {path}")
+        return
 
     sizes = SIZES if args.size == "all" else [SIZES_MAP[args.size]]
 

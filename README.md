@@ -46,6 +46,9 @@ python main.py --db sqlite --operation json
 
 # Run all databases with all operations and sizes and 3 trials
 python main.py --db all --operation all --size all --trials 3
+
+# Draw diagrams from benchmark summary
+python main.py --draw
 ```
 
 ### Available options
@@ -57,6 +60,8 @@ python main.py --db all --operation all --size all --trials 3
 **--size**: `5000`, `500000`, `1000000`, `10000000`, `all`
 
 **--trials**: `1`, `2`, `3`, ...
+
+**--draw**
 
 ## Schema (10 tables)
 
@@ -76,4 +81,6 @@ python main.py --db all --operation all --size all --trials 3
 Results are stored in CSV format at:
 
 - `results/benchmark_results.csv` - timing results
-- `results/{db}_explain_{timestamp}.csv` - EXPLAIN plans
+- `results/benchmark_summary.csv` - aggregated summary (uses last 3 samples)
+- `results/explain/{db}_explain_trial{trial}_{timestamp}.csv` - EXPLAIN plans
+- `results/diagrams/{operation}_{timestamp}.png` - operation line diagrams

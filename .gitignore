@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 .ruff_cache
 .venv
+venv
 
 *cache*
 .direnv
@@ -16,4 +17,8 @@ results/*.csv
 
 .vscode/
 .idea/
+
 *explain*.csv
+
+*.svg
+*.png

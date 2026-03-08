@@ -15,3 +15,6 @@ complete -c python -n $main_py_cond -l size -r -f -d 'Size of test data' \
 # --trials
 complete -c python -n $main_py_cond -l trials -r -f -d 'Number of trials to run' \
     -a "1\t'1 trial (default)' 2\t'2 trials' 3\t'3 trials'"
+
+# --draw
+complete -c python -n $main_py_cond -l draw -f -d 'Draw diagrams from benchmark summary'
