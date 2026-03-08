@@ -74,9 +74,7 @@ class MongoBenchmark:
                     pass
             elif name == "insert_upsert":
                 doc = query_func()
-                self.db.users.update_one(
-                    {"email": "test@example.com"}, doc, upsert=True
-                )
+                self.db.users.update_one({"email": "test@example.com"}, doc, upsert=True)
             elif name == "insert_many":
                 docs = query_func()
                 self.db.categories.insert_many(docs)
@@ -116,9 +114,7 @@ class MongoBenchmark:
                 status = "unsupported"
             elif name == "update_upsert":
                 doc = query_func()
-                self.db.products.update_one(
-                    {"name": "upsert_product"}, {"$set": doc}, upsert=True
-                )
+                self.db.products.update_one({"name": "upsert_product"}, {"$set": doc}, upsert=True)
             elif name == "delete_single":
                 doc_filter = query_func(999999)
                 self.db.users.delete_one(doc_filter)
@@ -165,9 +161,7 @@ class MongoBenchmark:
                     pass
             elif name == "index_insert_upsert":
                 doc = query_func()
-                self.db.products.update_one(
-                    {"name": "upsert_product"}, {"$set": doc}, upsert=True
-                )
+                self.db.products.update_one({"name": "upsert_product"}, {"$set": doc}, upsert=True)
             elif name == "index_insert_many":
                 docs = query_func()
                 self.db.products.insert_many(docs)
@@ -200,18 +194,14 @@ class MongoBenchmark:
                 self.db.products.update_many({"category_id": 1}, update_doc)
             elif name == "index_update_in":
                 update_doc = query_func()
-                self.db.products.update_many(
-                    {"category_id": {"$in": [1, 2, 3]}}, update_doc
-                )
+                self.db.products.update_many({"category_id": {"$in": [1, 2, 3]}}, update_doc)
             elif name == "index_update_case":
                 status = "unsupported"
             elif name == "index_update_join":
                 status = "unsupported"
             elif name == "index_update_upsert":
                 doc = query_func()
-                self.db.products.update_one(
-                    {"name": "existing_product"}, {"$set": doc}, upsert=True
-                )
+                self.db.products.update_one({"name": "existing_product"}, {"$set": doc}, upsert=True)
             elif name == "index_delete_single":
                 doc_filter = query_func()
                 self.db.users.delete_one(doc_filter)
@@ -328,7 +318,7 @@ def run_mongo_benchmark(size, operation_type="all", trial=1):
             bench.bulk_insert("users", size, generate_bulk_users)
             bench.run_indexed_queries(size, trial=trial)
 
-        if operation_type in ["all", "explain"]:
+        if operation_type in ["explain"]:
             bench.run_explain_queries(trial=trial)
 
         if operation_type in ["all", "json"]:
