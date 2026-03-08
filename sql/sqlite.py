@@ -153,8 +153,12 @@ class SQLiteBenchmark:
 
     def setup_reference_data(self):
         cur = self.conn.cursor()
-        cur.execute("INSERT INTO categories (name) VALUES ('cat1'), ('cat2'), ('cat3'), ('cat4'), ('cat5')")
-        cur.execute("INSERT INTO warehouses (name, location) VALUES ('wh1', 'loc1'), ('wh2', 'loc2')")
+        cur.execute(
+            "INSERT INTO categories (name) VALUES ('cat1'), ('cat2'), ('cat3'), ('cat4'), ('cat5')"
+        )
+        cur.execute(
+            "INSERT INTO warehouses (name, location) VALUES ('wh1', 'loc1'), ('wh2', 'loc2')"
+        )
         self.conn.commit()
 
     def bulk_insert_users(self, count):
@@ -180,11 +184,19 @@ class SQLiteBenchmark:
         users = generate_bulk_users(counts["users"])
         categories = generate_bulk_categories(counts["categories"])
         warehouses = generate_bulk_warehouses(counts["warehouses"])
-        products = generate_bulk_products(counts["products"], list(range(1, counts["categories"] + 1)))
+        products = generate_bulk_products(
+            counts["products"], list(range(1, counts["categories"] + 1))
+        )
         orders = generate_bulk_orders(counts["orders"], counts["users"])
-        order_items = generate_bulk_order_items(counts["order_items"], counts["orders"], counts["products"])
-        reviews = generate_bulk_reviews(counts["reviews"], counts["users"], counts["products"])
-        inventory = generate_bulk_inventory(counts["inventory"], counts["products"], counts["warehouses"])
+        order_items = generate_bulk_order_items(
+            counts["order_items"], counts["orders"], counts["products"]
+        )
+        reviews = generate_bulk_reviews(
+            counts["reviews"], counts["users"], counts["products"]
+        )
+        inventory = generate_bulk_inventory(
+            counts["inventory"], counts["products"], counts["warehouses"]
+        )
         addresses = generate_bulk_addresses(counts["addresses"], counts["users"])
         payments = generate_bulk_payments(counts["payments"], counts["orders"])
 
@@ -223,11 +235,17 @@ class SQLiteBenchmark:
         )
         cur.executemany(
             "INSERT INTO orders (user_id, status, total, created_at) VALUES (?, ?, ?, ?)",
-            [(o["user_id"], o["status"], o["total"], str(o["created_at"])) for o in orders],
+            [
+                (o["user_id"], o["status"], o["total"], str(o["created_at"]))
+                for o in orders
+            ],
         )
         cur.executemany(
             "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)",
-            [(oi["order_id"], oi["product_id"], oi["quantity"], oi["price"]) for oi in order_items],
+            [
+                (oi["order_id"], oi["product_id"], oi["quantity"], oi["price"])
+                for oi in order_items
+            ],
         )
         cur.executemany(
             "INSERT INTO reviews (user_id, product_id, rating, comment, metadata) VALUES (?, ?, ?, ?, ?)",
@@ -260,7 +278,10 @@ class SQLiteBenchmark:
         )
         cur.executemany(
             "INSERT INTO payments (order_id, method, amount, data) VALUES (?, ?, ?, ?)",
-            [(p["order_id"], p["method"], p["amount"], json.dumps(p["data"])) for p in payments],
+            [
+                (p["order_id"], p["method"], p["amount"], json.dumps(p["data"]))
+                for p in payments
+            ],
         )
         self.conn.commit()
 
@@ -379,7 +400,8 @@ class SQLiteBenchmark:
                 start = time.time()
                 cur = self.conn.cursor()
                 cur.executemany(
-                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0] + "VALUES (?, ?, ?, ?)",
+                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0]
+                    + "VALUES (?, ?, ?, ?)",
                     data,
                 )
                 self.conn.commit()
@@ -389,7 +411,8 @@ class SQLiteBenchmark:
                 start = time.time()
                 cur = self.conn.cursor()
                 cur.executemany(
-                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0] + "VALUES (?)",
+                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0]
+                    + "VALUES (?)",
                     cats,
                 )
                 self.conn.commit()
@@ -427,17 +450,21 @@ class SQLiteBenchmark:
                 start = time.time()
                 cur = self.conn.cursor()
                 cur.executemany(
-                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0] + "VALUES (?, ?, ?, ?)",
+                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0]
+                    + "VALUES (?, ?, ?, ?)",
                     data,
                 )
                 self.conn.commit()
                 elapsed = (time.time() - start) * 1000
             elif name == "index_insert_many":
-                prods = [(f"product{i}", 10.0, 1, '{"color": "red"}') for i in range(100)]
+                prods = [
+                    (f"product{i}", 10.0, 1, '{"color": "red"}') for i in range(100)
+                ]
                 start = time.time()
                 cur = self.conn.cursor()
                 cur.executemany(
-                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0] + "VALUES (?, ?, ?, ?)",
+                    q["query"].replace("VALUES", "VALUES (?)").split("VALUES")[0]
+                    + "VALUES (?, ?, ?, ?)",
                     prods,
                 )
                 self.conn.commit()

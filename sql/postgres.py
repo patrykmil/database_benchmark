@@ -112,20 +112,46 @@ class PostgresBenchmark:
     def ensure_indexes(self):
         with self.conn.cursor() as cur:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_products_price ON products(price)")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_products_price ON products(price)"
+            )
             cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_user ON orders(user_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_order_items_product ON order_items(product_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_reviews_product ON reviews(product_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_reviews_user ON reviews(user_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory(product_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_inventory_warehouse ON inventory(warehouse_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_addresses_user ON addresses(user_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_order_items_product ON order_items(product_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reviews_product ON reviews(product_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_reviews_user ON reviews(user_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_inventory_product ON inventory(product_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_inventory_warehouse ON inventory(warehouse_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_addresses_user ON addresses(user_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_payments_order ON payments(order_id)"
+            )
 
     def drop_indexes(self):
         with self.conn.cursor() as cur:
@@ -157,12 +183,19 @@ class PostgresBenchmark:
 
     def setup_reference_data(self):
         with self.conn.cursor() as cur:
-            cur.execute("INSERT INTO categories (name) VALUES ('cat1'), ('cat2'), ('cat3'), ('cat4'), ('cat5')")
-            cur.execute("INSERT INTO warehouses (name, location) VALUES ('wh1', 'loc1'), ('wh2', 'loc2')")
+            cur.execute(
+                "INSERT INTO categories (name) VALUES ('cat1'), ('cat2'), ('cat3'), ('cat4'), ('cat5')"
+            )
+            cur.execute(
+                "INSERT INTO warehouses (name, location) VALUES ('wh1', 'loc1'), ('wh2', 'loc2')"
+            )
 
     def bulk_insert_users(self, count):
         users = generate_bulk_users(count)
-        data = [(u["name"], u["email"], u["created_at"], json.dumps(u["preferences"])) for u in users]
+        data = [
+            (u["name"], u["email"], u["created_at"], json.dumps(u["preferences"]))
+            for u in users
+        ]
         with self.conn.cursor() as cur:
             execute_values(
                 cur,
@@ -175,7 +208,10 @@ class PostgresBenchmark:
         counts = split_starting_data(total_records)
 
         users = generate_bulk_users(counts["users"])
-        users_data = [(u["name"], u["email"], u["created_at"], json.dumps(u["preferences"])) for u in users]
+        users_data = [
+            (u["name"], u["email"], u["created_at"], json.dumps(u["preferences"]))
+            for u in users
+        ]
 
         categories = generate_bulk_categories(counts["categories"])
         categories_data = [(c["name"], c["parent_id"]) for c in categories]
@@ -186,18 +222,26 @@ class PostgresBenchmark:
         category_ids = list(range(1, counts["categories"] + 1))
         products = generate_bulk_products(counts["products"], category_ids)
         products_data = [
-            (p["name"], p["price"], p["category_id"], json.dumps(p["attributes"])) for p in products
+            (p["name"], p["price"], p["category_id"], json.dumps(p["attributes"]))
+            for p in products
         ]
 
         orders = generate_bulk_orders(counts["orders"], counts["users"])
-        orders_data = [(o["user_id"], o["status"], o["total"], o["created_at"]) for o in orders]
-
-        order_items = generate_bulk_order_items(counts["order_items"], counts["orders"], counts["products"])
-        order_items_data = [
-            (oi["order_id"], oi["product_id"], oi["quantity"], oi["price"]) for oi in order_items
+        orders_data = [
+            (o["user_id"], o["status"], o["total"], o["created_at"]) for o in orders
         ]
 
-        reviews = generate_bulk_reviews(counts["reviews"], counts["users"], counts["products"])
+        order_items = generate_bulk_order_items(
+            counts["order_items"], counts["orders"], counts["products"]
+        )
+        order_items_data = [
+            (oi["order_id"], oi["product_id"], oi["quantity"], oi["price"])
+            for oi in order_items
+        ]
+
+        reviews = generate_bulk_reviews(
+            counts["reviews"], counts["users"], counts["products"]
+        )
         reviews_data = [
             (
                 r["user_id"],
@@ -209,8 +253,12 @@ class PostgresBenchmark:
             for r in reviews
         ]
 
-        inventory = generate_bulk_inventory(counts["inventory"], counts["products"], counts["warehouses"])
-        inventory_data = [(i["product_id"], i["warehouse_id"], i["quantity"]) for i in inventory]
+        inventory = generate_bulk_inventory(
+            counts["inventory"], counts["products"], counts["warehouses"]
+        )
+        inventory_data = [
+            (i["product_id"], i["warehouse_id"], i["quantity"]) for i in inventory
+        ]
 
         addresses = generate_bulk_addresses(counts["addresses"], counts["users"])
         addresses_data = [
@@ -224,7 +272,10 @@ class PostgresBenchmark:
         ]
 
         payments = generate_bulk_payments(counts["payments"], counts["orders"])
-        payments_data = [(p["order_id"], p["method"], p["amount"], json.dumps(p["data"])) for p in payments]
+        payments_data = [
+            (p["order_id"], p["method"], p["amount"], json.dumps(p["data"]))
+            for p in payments
+        ]
 
         with self.conn.cursor() as cur:
             execute_values(
@@ -524,7 +575,9 @@ class PostgresBenchmark:
                     cur.execute(query, flat_data)
                 elapsed = (time.time() - start) * 1000
             elif name == "index_insert_many":
-                prods = [(f"product{i}", 10.0, 1, '{"color": "red"}') for i in range(100)]
+                prods = [
+                    (f"product{i}", 10.0, 1, '{"color": "red"}') for i in range(100)
+                ]
                 query = q["query"] + "(%s, %s, %s, %s)" + ",(%s, %s, %s, %s)" * 99
                 flat_data = []
                 for p in prods:

@@ -113,7 +113,9 @@ class UnqliteBenchmark:
         categories = generate_bulk_categories(counts["categories"])
         warehouses = generate_bulk_warehouses(counts["warehouses"])
 
-        products = generate_bulk_products(counts["products"], list(range(1, counts["categories"] + 1)))
+        products = generate_bulk_products(
+            counts["products"], list(range(1, counts["categories"] + 1))
+        )
         for idx, product in enumerate(products, start=1):
             product["id"] = idx
 
@@ -121,11 +123,17 @@ class UnqliteBenchmark:
         for idx, order in enumerate(orders, start=1):
             order["id"] = idx
 
-        order_items = generate_bulk_order_items(counts["order_items"], counts["orders"], counts["products"])
+        order_items = generate_bulk_order_items(
+            counts["order_items"], counts["orders"], counts["products"]
+        )
 
-        reviews = generate_bulk_reviews(counts["reviews"], counts["users"], counts["products"])
+        reviews = generate_bulk_reviews(
+            counts["reviews"], counts["users"], counts["products"]
+        )
 
-        inventory = generate_bulk_inventory(counts["inventory"], counts["products"], counts["warehouses"])
+        inventory = generate_bulk_inventory(
+            counts["inventory"], counts["products"], counts["warehouses"]
+        )
 
         addresses = generate_bulk_addresses(counts["addresses"], counts["users"])
         payments = generate_bulk_payments(counts["payments"], counts["orders"])
@@ -160,7 +168,9 @@ class UnqliteBenchmark:
             if name in unsupported_nonindexed:
                 status = "unsupported"
                 results[name] = elapsed
-                save_result("unqlite", name, size, elapsed, size, trial=trial, status=status)
+                save_result(
+                    "unqlite", name, size, elapsed, size, trial=trial, status=status
+                )
                 continue
 
             if name == "insert_single":
@@ -294,7 +304,9 @@ class UnqliteBenchmark:
                 status = "unsupported"
 
             results[name] = elapsed
-            save_result("unqlite", name, size, elapsed, size, trial=trial, status=status)
+            save_result(
+                "unqlite", name, size, elapsed, size, trial=trial, status=status
+            )
 
         return results
 
@@ -323,7 +335,9 @@ class UnqliteBenchmark:
             if name in unsupported_indexed:
                 status = "unsupported"
                 results[name] = elapsed
-                save_result("unqlite", name, size, elapsed, size, trial=trial, status=status)
+                save_result(
+                    "unqlite", name, size, elapsed, size, trial=trial, status=status
+                )
                 continue
 
             if name == "index_insert_single":
@@ -343,7 +357,9 @@ class UnqliteBenchmark:
                 col = self._get_collection("users")
                 start = time.time()
                 for i in range(1000):
-                    col.store({"name": f"bulkuser{i}", "email": f"bulkuser{i}@example.com"})
+                    col.store(
+                        {"name": f"bulkuser{i}", "email": f"bulkuser{i}@example.com"}
+                    )
                 elapsed = (time.time() - start) * 1000
             elif name == "index_insert_ignore":
                 col = self._get_collection("products")
@@ -397,7 +413,9 @@ class UnqliteBenchmark:
                 status = "unsupported"
 
             results[name] = elapsed
-            save_result("unqlite", name, size, elapsed, size, trial=trial, status=status)
+            save_result(
+                "unqlite", name, size, elapsed, size, trial=trial, status=status
+            )
 
         return results
 

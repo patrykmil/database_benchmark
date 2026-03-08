@@ -144,7 +144,9 @@ def draw_summary_diagrams():
         plt.grid(True, linestyle="--", alpha=0.4)
         plt.tight_layout()
 
-        safe_operation = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in operation)
+        safe_operation = "".join(
+            c if c.isalnum() or c in ("-", "_") else "_" for c in operation
+        )
         output_file = f"{safe_operation}_{timestamp}.png"
         output_path = os.path.join(output_dir, output_file)
         plt.savefig(output_path, dpi=150)
@@ -175,14 +177,14 @@ def save_result(database, operation, size, time_ms, elements, trial=1, status="o
         )
 
 
-def save_explain_result(database, query_name, plan_text, execution_time, trial=1, status="ok"):
+def save_explain_result(
+    database, query_name, plan_text, execution_time, trial=1, status="ok"
+):
     serialized_time = ""
     if execution_time is not None:
         serialized_time = round(execution_time, 2)
 
-    explain_file = (
-        f"results/explain/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
-    )
+    explain_file = f"results/explain/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
     os.makedirs("results/explain", exist_ok=True)
     with open(explain_file, "w", newline="") as f:
         writer = csv.writer(f)
