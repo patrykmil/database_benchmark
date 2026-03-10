@@ -85,11 +85,10 @@ class UnqliteBenchmark:
 
     def needs_starting_data_refresh(self, target_size):
         current_size = self.get_total_record_count()
-        need = False
         if current_size is None:
-            need = True
-        if abs(current_size - target_size) > (target_size * 0.05):
-            need = True
+            print("Current total record count is unknown, refreshing data.")
+            return True
+        need = abs(current_size - target_size) > (target_size * 0.05)
         if need:
             print(
                 f"Current total record count {current_size:_} differs from target {target_size:_} by more than 5%, refreshing data."
