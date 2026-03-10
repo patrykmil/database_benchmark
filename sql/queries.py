@@ -102,7 +102,7 @@ NONINDEXED_QUERIES = {
     # DELETE - 6 queries
     "delete_single": {
         "query": "DELETE FROM users WHERE id = %s",
-        "params": lambda: (999999,),
+        "params": lambda: (-1,),
     },
     "delete_many": {
         "query": "DELETE FROM users WHERE created_at < %s",
