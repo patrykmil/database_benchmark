@@ -6,7 +6,12 @@ from nosql.mongo import run_mongo_benchmark
 from nosql.unqlite import run_unqlite_benchmark
 from sql.postgres import run_postgres_benchmark
 from sql.sqlite import run_sqlite_benchmark
-from utils.results import build_summary_csv, draw_summary_diagrams, init_csv
+from utils.results import (
+    build_extended_analysis,
+    build_summary_csv,
+    draw_summary_diagrams,
+    init_csv,
+)
 
 DATABASES = {
     "postgres": run_postgres_benchmark,
@@ -73,6 +78,14 @@ def main():
             "and save to results/diagrams"
         ),
     )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        help=(
+            "Create extended analysis from results/benchmark_summary.csv "
+            "(up to last 3 samples) and save to results/benchmark_analysis.md"
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -90,6 +103,15 @@ def main():
         print(f"Generated {len(diagrams)} diagrams:")
         for path in diagrams:
             print(f"- {path}")
+        return
+
+    if args.analyze:
+        analysis_path = build_extended_analysis()
+        if not analysis_path:
+            print("No summary data available to analyze.")
+            return
+
+        print(f"Extended analysis saved to: {analysis_path}")
         return
 
     sizes = SIZES if args.size == "all" else [SIZES_MAP[args.size]]

@@ -49,6 +49,9 @@ python main.py --db all --operation all --size all --trials 3
 
 # Draw diagrams from benchmark summary
 python main.py --draw
+
+# Generate extended analysis from summary
+python main.py --analyze
 ```
 
 ### Available options
@@ -62,6 +65,8 @@ python main.py --draw
 **--trials**: `1`, `2`, `3`, ...
 
 **--draw**
+
+**--analyze**
 
 ## Schema (10 tables)
 
@@ -82,5 +87,6 @@ Results are stored in CSV format at:
 
 - `results/benchmark_results.csv` - timing results
 - `results/benchmark_summary.csv` - aggregated summary (uses last 3 samples)
+- `results/benchmark_analysis.md` - extended analysis from summary (uses last 3 samples)
 - `results/explain/{db}_explain_trial{trial}_{timestamp}.csv` - EXPLAIN plans
 - `results/diagrams/{operation}_{timestamp}.png` - operation line diagrams

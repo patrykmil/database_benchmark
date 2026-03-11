@@ -18,3 +18,6 @@ complete -c python -n $main_py_cond -l trials -r -f -d 'Number of trials to run'
 
 # --draw
 complete -c python -n $main_py_cond -l draw -f -d 'Draw diagrams from benchmark summary'
+
+# --analyze
+complete -c python -n $main_py_cond -l analyze -f -d 'Generate analysis from benchmark summary'
