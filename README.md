@@ -90,3 +90,5 @@ Results are stored in CSV format at:
 - `results/benchmark_analysis.md` - extended analysis from summary (uses last 3 samples)
 - `results/explain/{db}_explain_trial{trial}_{timestamp}.csv` - EXPLAIN plans
 - `results/diagrams/{operation}_{timestamp}.png` - operation line diagrams
+- `results/diagrams/all_operations_average_{timestamp}.png` - average line chart across all operations
+- `results/diagrams/operation_type_boxplot_{timestamp}.png` - seaborn boxplot grouped by insert/select/update/delete and database

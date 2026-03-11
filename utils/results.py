@@ -4,6 +4,9 @@ import os
 from collections import defaultdict
 from datetime import datetime
 
+import pandas as pd
+import seaborn as sns
+
 from config import CSV_FILE
 
 SUMMARY_CSV_FILE = "results/benchmark_summary.csv"
@@ -15,6 +18,17 @@ DB_COLORS = {
     "mongo": "#2ca02c",
     "unqlite": "#76D03D",
 }
+
+
+def _operation_type(operation):
+    if operation.startswith("index_"):
+        operation = operation[len("index_") :]
+
+    for op_type in ("insert", "select", "update", "delete"):
+        if operation.startswith(f"{op_type}_") or operation == op_type:
+            return op_type
+
+    return None
 
 
 def init_csv():
@@ -214,9 +228,7 @@ def build_extended_analysis(max_samples=SUMMARY_LAST_SAMPLES):
             continue
 
         if len(samples) > 1:
-            variance = sum((value - mean_value) ** 2 for value in samples) / len(
-                samples
-            )
+            variance = sum((value - mean_value) ** 2 for value in samples) / len(samples)
             std_dev = math.sqrt(variance)
         else:
             std_dev = 0.0
@@ -252,20 +264,16 @@ def build_extended_analysis(max_samples=SUMMARY_LAST_SAMPLES):
 
     with open(ANALYSIS_FILE, "w", newline="") as f:
         f.write(f"Generated at: {generated_at}\n")
-        
+
         total_cases = len(summary_rows)
         f.write(f"- Cases in summary: {total_cases}\n")
         for sample_count in sorted(coverage.keys()):
-            f.write(
-                f"- Cases with {sample_count} sample(s): {coverage[sample_count]}\n"
-            )
+            f.write(f"- Cases with {sample_count} sample(s): {coverage[sample_count]}\n")
         f.write("\n")
 
         f.write("## Global database ranking (lower is better)\n")
         for index, (db, avg_time) in enumerate(db_ranking, start=1):
-            f.write(
-                f"{index}. {db}: {avg_time:.2f} ms average across operations/sizes\n"
-            )
+            f.write(f"{index}. {db}: {avg_time:.2f} ms average across operations/sizes\n")
         f.write("\n")
 
         f.write("## Operation leaders\n")
@@ -296,9 +304,7 @@ def build_extended_analysis(max_samples=SUMMARY_LAST_SAMPLES):
 
         f.write("## Scaling sensitivity (largest vs smallest size)\n")
         if growth_cases:
-            for growth, db, op, min_size, max_size, min_time, max_time in growth_cases[
-                :10
-            ]:
+            for growth, db, op, min_size, max_size, min_time, max_time in growth_cases[:10]:
                 f.write(
                     f"- {db} / {op}: {min_size}->{max_size}, "
                     f"{min_time:.2f}->{max_time:.2f} ms ({growth:.2f}x)\n"
@@ -315,6 +321,7 @@ def draw_summary_diagrams():
 
     grouped = defaultdict(lambda: defaultdict(list))
     overall_by_db_size = defaultdict(list)
+    boxplot_rows = []
     with open(SUMMARY_CSV_FILE, "r", newline="") as f:
         reader = csv.reader(f)
         rows = list(reader)
@@ -349,6 +356,9 @@ def draw_summary_diagrams():
 
         grouped[operation][database].append((size, avg_time))
         overall_by_db_size[(database, size)].append(avg_time)
+        op_type = _operation_type(operation)
+        if op_type:
+            boxplot_rows.append((database, op_type, avg_time))
 
     if not grouped:
         return []
@@ -384,9 +394,7 @@ def draw_summary_diagrams():
         plt.grid(True, linestyle="--", alpha=0.4)
         plt.tight_layout()
 
-        safe_operation = "".join(
-            c if c.isalnum() or c in ("-", "_") else "_" for c in operation
-        )
+        safe_operation = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in operation)
         output_file = f"{safe_operation}_{timestamp}.png"
         output_path = os.path.join(output_dir, output_file)
         plt.savefig(output_path, dpi=150)
@@ -424,6 +432,61 @@ def draw_summary_diagrams():
         plt.close()
         generated_files.append(output_path)
 
+    if boxplot_rows:
+        plt.figure(figsize=(11, 6.5))
+        boxplot_data = pd.DataFrame(
+            [
+                {"database": db, "operation_type": op_type, "avg_time_ms": avg_time}
+                for db, op_type, avg_time in boxplot_rows
+            ]
+        )
+        sns.boxplot(
+            data=boxplot_data,
+            x="operation_type",
+            y="avg_time_ms",
+            hue="database",
+            order=["insert", "select", "update", "delete"],
+            hue_order=sorted({row[0] for row in boxplot_rows}),
+            palette=DB_COLORS,
+            showfliers=False,
+        )
+        plt.title("Operation Type Distribution by Database")
+        plt.xlabel("Operation Type")
+        plt.ylabel("Avg Time (ms)")
+        plt.grid(True, axis="y", linestyle="--", alpha=0.3)
+        plt.tight_layout()
+
+        output_file = f"operation_type_boxplot_{timestamp}.png"
+        output_path = os.path.join(output_dir, output_file)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        generated_files.append(output_path)
+
+        boxplot_data_no_unqlite = boxplot_data[boxplot_data["database"] != "unqlite"]
+        if not boxplot_data_no_unqlite.empty:
+            plt.figure(figsize=(11, 6.5))
+            sns.boxplot(
+                data=boxplot_data_no_unqlite,
+                x="operation_type",
+                y="avg_time_ms",
+                hue="database",
+                order=["insert", "select", "update", "delete"],
+                hue_order=sorted(set(boxplot_data_no_unqlite["database"])),
+                palette=DB_COLORS,
+                showfliers=False,
+            )
+            plt.title("Operation Type Distribution by Database (without UnQLite)")
+            plt.xlabel("Operation Type")
+            plt.ylabel("Avg Time (ms)")
+            plt.grid(True, axis="y", linestyle="--", alpha=0.3)
+            plt.tight_layout()
+
+            output_file = f"operation_type_boxplot_no_unqlite_{timestamp}.png"
+            output_path = os.path.join(output_dir, output_file)
+            plt.savefig(output_path, dpi=150)
+            plt.close()
+            generated_files.append(output_path)
+
     return generated_files
 
 
@@ -448,14 +511,14 @@ def save_result(database, operation, size, time_ms, elements, trial=1, status="o
         )
 
 
-def save_explain_result(
-    database, query_name, plan_text, execution_time, trial=1, status="ok"
-):
+def save_explain_result(database, query_name, plan_text, execution_time, trial=1, status="ok"):
     serialized_time = ""
     if execution_time is not None:
         serialized_time = round(execution_time, 2)
 
-    explain_file = f"results/explain/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
+    explain_file = (
+        f"results/explain/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
+    )
     os.makedirs("results/explain", exist_ok=True)
     with open(explain_file, "w", newline="") as f:
         writer = csv.writer(f)
