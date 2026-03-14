@@ -15,6 +15,21 @@ STARTING_DATA_WEIGHTS = {
     "payments": 0.025,
 }
 
+STARTING_DATA_TABLES = list(STARTING_DATA_WEIGHTS.keys())
+
+STARTING_DATA_INSERT_ORDER = [
+    "users",
+    "categories",
+    "warehouses",
+    "products",
+    "orders",
+    "order_items",
+    "reviews",
+    "inventory",
+    "addresses",
+    "payments",
+]
+
 STARTING_DATA_ORDER = [
     "order_items",
     "orders",
@@ -27,6 +42,8 @@ STARTING_DATA_ORDER = [
     "categories",
     "warehouses",
 ]
+
+STARTING_DATA_DELETE_ORDER = STARTING_DATA_ORDER.copy()
 
 
 def random_string(length=10):
@@ -156,12 +173,27 @@ def generate_bulk_products(count, category_ids):
 
 
 def generate_bulk_categories(count):
+    return generate_bulk_categories_incremental(count, start_id=1)
+
+
+def assign_sequential_ids(records, start_id=1, field_name="id"):
+    for offset, record in enumerate(records):
+        record[field_name] = start_id + offset
+    return records
+
+
+def generate_bulk_categories_incremental(count, start_id=1, existing_ids=None):
+    known_ids = list(existing_ids or [])
     cats = []
-    for i in range(count):
-        parent = random.choice(cats)["id"] if cats and random.random() > 0.7 else None
+    for offset in range(count):
+        category_id = start_id + offset
+        parent = (
+            random.choice(known_ids) if known_ids and random.random() > 0.7 else None
+        )
         cat = generate_category(parent)
-        cat["id"] = i + 1
+        cat["id"] = category_id
         cats.append(cat)
+        known_ids.append(category_id)
     return cats
 
 

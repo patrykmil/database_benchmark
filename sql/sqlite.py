@@ -23,6 +23,13 @@ from utils.generator import (
     generate_bulk_reviews,
     generate_bulk_users,
     generate_bulk_warehouses,
+    generate_category,
+    generate_inventory,
+    generate_order,
+    generate_order_item,
+    generate_payment,
+    generate_review,
+    generate_warehouse,
     split_starting_data,
 )
 from utils.results import save_explain_result, save_result
@@ -184,6 +191,423 @@ class SQLiteBenchmark:
             ],
         )
         self.conn.commit()
+
+    def get_table_count(self, table_name):
+        cur = self.conn.cursor()
+        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+        return cur.fetchone()[0]
+
+    def get_existing_ids(self, table_name):
+        cur = self.conn.cursor()
+        cur.execute(f"SELECT id FROM {table_name} ORDER BY id")
+        return [row[0] for row in cur.fetchall()]
+
+    def get_max_id(self, table_name):
+        cur = self.conn.cursor()
+        cur.execute(f"SELECT COALESCE(MAX(id), 0) FROM {table_name}")
+        return cur.fetchone()[0]
+
+    def _placeholders(self, count):
+        return ", ".join("?" for _ in range(count))
+
+    def get_ids_to_trim(self, table_name, target_count):
+        current_count = self.get_table_count(table_name)
+        excess = current_count - target_count
+        if excess <= 0:
+            return []
+
+        cur = self.conn.cursor()
+        cur.execute(f"SELECT id FROM {table_name} ORDER BY id DESC LIMIT ?", (excess,))
+        return [row[0] for row in cur.fetchall()]
+
+    def delete_ids(self, table_name, ids):
+        if not ids:
+            return
+        cur = self.conn.cursor()
+        cur.execute(
+            f"DELETE FROM {table_name} WHERE id IN ({self._placeholders(len(ids))})",
+            ids,
+        )
+        self.conn.commit()
+
+    def delete_by_foreign_key(self, table_name, column_name, ids):
+        if not ids:
+            return
+        cur = self.conn.cursor()
+        cur.execute(
+            f"DELETE FROM {table_name} WHERE {column_name} IN ({self._placeholders(len(ids))})",
+            ids,
+        )
+        self.conn.commit()
+
+    def insert_users(self, users):
+        if not users:
+            return
+        cur = self.conn.cursor()
+        cur.executemany(
+            "INSERT INTO users (name, email, created_at, preferences) VALUES (?, ?, ?, ?)",
+            [
+                (
+                    u["name"],
+                    u["email"],
+                    str(u["created_at"]),
+                    json.dumps(u["preferences"]),
+                )
+                for u in users
+            ],
+        )
+        self.conn.commit()
+
+    def insert_categories(self, categories):
+        if not categories:
+            return
+        cur = self.conn.cursor()
+        cur.executemany(
+            "INSERT INTO categories (name, parent_id) VALUES (?, ?)",
+            [(c["name"], c["parent_id"]) for c in categories],
+        )
+        self.conn.commit()
+
+    def insert_warehouses(self, warehouses):
+        if not warehouses:
+            return
+        cur = self.conn.cursor()
+        cur.executemany(
+            "INSERT INTO warehouses (name, location) VALUES (?, ?)",
+            [(w["name"], w["location"]) for w in warehouses],
+        )
+        self.conn.commit()
+
+    def insert_products(self, products):
+        if not products:
+            return
+        cur = self.conn.cursor()
+        cur.executemany(
+            "INSERT INTO products (name, price, category_id, attributes) VALUES (?, ?, ?, ?)",
+            [
+                (
+                    p["name"],
+                    p["price"],
+                    p["category_id"],
+                    json.dumps(p["attributes"]),
+                )
+                for p in products
+            ],
+        )
+        self.conn.commit()
+
+    def insert_orders(self, orders):
+        if not orders:
+            return
+        cur = self.conn.cursor()
+        cur.executemany(
+            "INSERT INTO orders (user_id, status, total, created_at) VALUES (?, ?, ?, ?)",
+            [
+                (o["user_id"], o["status"], o["total"], str(o["created_at"]))
+                for o in orders
+            ],
+        )
+        self.conn.commit()
+
+    def insert_order_items(self, order_items):
+        if not order_items:
+            return
+        cur = self.conn.cursor()
+        cur.executemany(
+            "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)",
+            [
+                (oi["order_id"], oi["product_id"], oi["quantity"], oi["price"])
+                for oi in order_items
+            ],
+        )
+        self.conn.commit()
+
+    def insert_reviews(self, reviews):
+        if not reviews:
+            return
+        cur = self.conn.cursor()
+        cur.executemany(
+            "INSERT INTO reviews (user_id, product_id, rating, comment, metadata) VALUES (?, ?, ?, ?, ?)",
+            [
+                (
+                    r["user_id"],
+                    r["product_id"],
+                    r["rating"],
+                    r["comment"],
+                    json.dumps(r["metadata"]),
+                )
+                for r in reviews
+            ],
+        )
+        self.conn.commit()
+
+    def insert_inventory(self, inventory):
+        if not inventory:
+            return
+        cur = self.conn.cursor()
+        cur.executemany(
+            "INSERT INTO inventory (product_id, warehouse_id, quantity) VALUES (?, ?, ?)",
+            [(i["product_id"], i["warehouse_id"], i["quantity"]) for i in inventory],
+        )
+        self.conn.commit()
+
+    def insert_addresses(self, addresses):
+        if not addresses:
+            return
+        cur = self.conn.cursor()
+        cur.executemany(
+            "INSERT INTO addresses (user_id, city, country, details) VALUES (?, ?, ?, ?)",
+            [
+                (
+                    a["user_id"],
+                    a["city"],
+                    a["country"],
+                    json.dumps(a["details"]),
+                )
+                for a in addresses
+            ],
+        )
+        self.conn.commit()
+
+    def insert_payments(self, payments):
+        if not payments:
+            return
+        cur = self.conn.cursor()
+        cur.executemany(
+            "INSERT INTO payments (order_id, method, amount, data) VALUES (?, ?, ?, ?)",
+            [
+                (p["order_id"], p["method"], p["amount"], json.dumps(p["data"]))
+                for p in payments
+            ],
+        )
+        self.conn.commit()
+
+    def reconcile_starting_data(self, total_records):
+        target_counts = split_starting_data(total_records)
+
+        users_to_delete = self.get_ids_to_trim("users", target_counts["users"])
+        categories_to_delete = self.get_ids_to_trim(
+            "categories", target_counts["categories"]
+        )
+        warehouses_to_delete = self.get_ids_to_trim(
+            "warehouses", target_counts["warehouses"]
+        )
+        products_to_delete = self.get_ids_to_trim("products", target_counts["products"])
+        orders_to_delete = self.get_ids_to_trim("orders", target_counts["orders"])
+
+        cur = self.conn.cursor()
+
+        if users_to_delete:
+            if orders_to_delete:
+                cur.execute(
+                    f"DELETE FROM payments WHERE order_id IN ({self._placeholders(len(orders_to_delete))})",
+                    orders_to_delete,
+                )
+            cur.execute(
+                f"DELETE FROM payments WHERE order_id IN (SELECT id FROM orders WHERE user_id IN ({self._placeholders(len(users_to_delete))}))",
+                users_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM order_items WHERE order_id IN (SELECT id FROM orders WHERE user_id IN ({self._placeholders(len(users_to_delete))}))",
+                users_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM orders WHERE user_id IN ({self._placeholders(len(users_to_delete))})",
+                users_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM reviews WHERE user_id IN ({self._placeholders(len(users_to_delete))})",
+                users_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM addresses WHERE user_id IN ({self._placeholders(len(users_to_delete))})",
+                users_to_delete,
+            )
+
+        if categories_to_delete:
+            cur.execute(
+                f"UPDATE categories SET parent_id = NULL WHERE parent_id IN ({self._placeholders(len(categories_to_delete))})",
+                categories_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM order_items WHERE product_id IN (SELECT id FROM products WHERE category_id IN ({self._placeholders(len(categories_to_delete))}))",
+                categories_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM reviews WHERE product_id IN (SELECT id FROM products WHERE category_id IN ({self._placeholders(len(categories_to_delete))}))",
+                categories_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM inventory WHERE product_id IN (SELECT id FROM products WHERE category_id IN ({self._placeholders(len(categories_to_delete))}))",
+                categories_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM products WHERE category_id IN ({self._placeholders(len(categories_to_delete))})",
+                categories_to_delete,
+            )
+
+        if warehouses_to_delete:
+            cur.execute(
+                f"DELETE FROM inventory WHERE warehouse_id IN ({self._placeholders(len(warehouses_to_delete))})",
+                warehouses_to_delete,
+            )
+
+        if products_to_delete:
+            cur.execute(
+                f"DELETE FROM order_items WHERE product_id IN ({self._placeholders(len(products_to_delete))})",
+                products_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM reviews WHERE product_id IN ({self._placeholders(len(products_to_delete))})",
+                products_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM inventory WHERE product_id IN ({self._placeholders(len(products_to_delete))})",
+                products_to_delete,
+            )
+
+        if orders_to_delete:
+            cur.execute(
+                f"DELETE FROM payments WHERE order_id IN ({self._placeholders(len(orders_to_delete))})",
+                orders_to_delete,
+            )
+            cur.execute(
+                f"DELETE FROM order_items WHERE order_id IN ({self._placeholders(len(orders_to_delete))})",
+                orders_to_delete,
+            )
+
+        self.conn.commit()
+
+        self.delete_ids("orders", orders_to_delete)
+        self.delete_ids("products", products_to_delete)
+        self.delete_ids("warehouses", warehouses_to_delete)
+        self.delete_ids("categories", categories_to_delete)
+        self.delete_ids("users", users_to_delete)
+        self.delete_ids(
+            "order_items",
+            self.get_ids_to_trim("order_items", target_counts["order_items"]),
+        )
+        self.delete_ids(
+            "reviews", self.get_ids_to_trim("reviews", target_counts["reviews"])
+        )
+        self.delete_ids(
+            "inventory",
+            self.get_ids_to_trim("inventory", target_counts["inventory"]),
+        )
+        self.delete_ids(
+            "addresses",
+            self.get_ids_to_trim("addresses", target_counts["addresses"]),
+        )
+        self.delete_ids(
+            "payments",
+            self.get_ids_to_trim("payments", target_counts["payments"]),
+        )
+
+        users_missing = target_counts["users"] - self.get_table_count("users")
+        if users_missing > 0:
+            self.insert_users(generate_bulk_users(users_missing))
+
+        categories_missing = target_counts["categories"] - self.get_table_count(
+            "categories"
+        )
+        if categories_missing > 0:
+            existing_category_ids = self.get_existing_ids("categories")
+            categories = []
+            for _ in range(categories_missing):
+                parent_id = (
+                    random.choice(existing_category_ids)
+                    if existing_category_ids and random.random() > 0.7
+                    else None
+                )
+                category = generate_category(parent_id)
+                categories.append(category)
+            self.insert_categories(categories)
+
+        warehouses_missing = target_counts["warehouses"] - self.get_table_count(
+            "warehouses"
+        )
+        if warehouses_missing > 0:
+            self.insert_warehouses(
+                [generate_warehouse() for _ in range(warehouses_missing)]
+            )
+
+        user_ids = self.get_existing_ids("users")
+        category_ids = self.get_existing_ids("categories")
+        warehouse_ids = self.get_existing_ids("warehouses")
+
+        products_missing = target_counts["products"] - self.get_table_count("products")
+        if products_missing > 0 and category_ids:
+            self.insert_products(generate_bulk_products(products_missing, category_ids))
+
+        product_ids = self.get_existing_ids("products")
+
+        orders_missing = target_counts["orders"] - self.get_table_count("orders")
+        if orders_missing > 0 and user_ids:
+            self.insert_orders(
+                [generate_order(random.choice(user_ids)) for _ in range(orders_missing)]
+            )
+
+        order_ids = self.get_existing_ids("orders")
+
+        order_items_missing = target_counts["order_items"] - self.get_table_count(
+            "order_items"
+        )
+        if order_items_missing > 0 and order_ids and product_ids:
+            self.insert_order_items(
+                [
+                    generate_order_item(
+                        random.choice(order_ids),
+                        random.choice(product_ids),
+                    )
+                    for _ in range(order_items_missing)
+                ]
+            )
+
+        reviews_missing = target_counts["reviews"] - self.get_table_count("reviews")
+        if reviews_missing > 0 and user_ids and product_ids:
+            self.insert_reviews(
+                [
+                    generate_review(
+                        random.choice(user_ids),
+                        random.choice(product_ids),
+                    )
+                    for _ in range(reviews_missing)
+                ]
+            )
+
+        inventory_missing = target_counts["inventory"] - self.get_table_count(
+            "inventory"
+        )
+        if inventory_missing > 0 and product_ids and warehouse_ids:
+            self.insert_inventory(
+                [
+                    generate_inventory(
+                        random.choice(product_ids),
+                        random.choice(warehouse_ids),
+                    )
+                    for _ in range(inventory_missing)
+                ]
+            )
+
+        addresses_missing = target_counts["addresses"] - self.get_table_count(
+            "addresses"
+        )
+        if addresses_missing > 0 and user_ids:
+            self.insert_addresses(
+                [
+                    generate_address(random.choice(user_ids))
+                    for _ in range(addresses_missing)
+                ]
+            )
+
+        payments_missing = target_counts["payments"] - self.get_table_count("payments")
+        if payments_missing > 0 and order_ids:
+            self.insert_payments(
+                [
+                    generate_payment(random.choice(order_ids))
+                    for _ in range(payments_missing)
+                ]
+            )
 
     def populate_starting_data(self, total_records):
         counts = split_starting_data(total_records)
@@ -527,17 +951,23 @@ def run_sqlite_benchmark(size, operation_type="all", trial=1):
 
     try:
         if operation_type in ["all", "nonindexed"]:
-            if bench.needs_starting_data_refresh(size):
+            if bench.get_total_record_count() is None:
                 bench.setup_schema(create_indexes=False)
                 bench.populate_starting_data(size)
+            elif bench.needs_starting_data_refresh(size):
+                bench.drop_indexes()
+                bench.reconcile_starting_data(size)
             else:
                 bench.drop_indexes()
             bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
-            if bench.needs_starting_data_refresh(size):
+            if bench.get_total_record_count() is None:
                 bench.setup_schema(create_indexes=True)
                 bench.populate_starting_data(size)
+            elif bench.needs_starting_data_refresh(size):
+                bench.ensure_indexes()
+                bench.reconcile_starting_data(size)
             else:
                 bench.ensure_indexes()
             bench.run_indexed_queries(size, trial=trial)

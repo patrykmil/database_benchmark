@@ -228,7 +228,9 @@ def build_extended_analysis(max_samples=SUMMARY_LAST_SAMPLES):
             continue
 
         if len(samples) > 1:
-            variance = sum((value - mean_value) ** 2 for value in samples) / len(samples)
+            variance = sum((value - mean_value) ** 2 for value in samples) / len(
+                samples
+            )
             std_dev = math.sqrt(variance)
         else:
             std_dev = 0.0
@@ -268,12 +270,16 @@ def build_extended_analysis(max_samples=SUMMARY_LAST_SAMPLES):
         total_cases = len(summary_rows)
         f.write(f"- Cases in summary: {total_cases}\n")
         for sample_count in sorted(coverage.keys()):
-            f.write(f"- Cases with {sample_count} sample(s): {coverage[sample_count]}\n")
+            f.write(
+                f"- Cases with {sample_count} sample(s): {coverage[sample_count]}\n"
+            )
         f.write("\n")
 
         f.write("## Global database ranking (lower is better)\n")
         for index, (db, avg_time) in enumerate(db_ranking, start=1):
-            f.write(f"{index}. {db}: {avg_time:.2f} ms average across operations/sizes\n")
+            f.write(
+                f"{index}. {db}: {avg_time:.2f} ms average across operations/sizes\n"
+            )
         f.write("\n")
 
         f.write("## Operation leaders\n")
@@ -304,7 +310,9 @@ def build_extended_analysis(max_samples=SUMMARY_LAST_SAMPLES):
 
         f.write("## Scaling sensitivity (largest vs smallest size)\n")
         if growth_cases:
-            for growth, db, op, min_size, max_size, min_time, max_time in growth_cases[:10]:
+            for growth, db, op, min_size, max_size, min_time, max_time in growth_cases[
+                :10
+            ]:
                 f.write(
                     f"- {db} / {op}: {min_size}->{max_size}, "
                     f"{min_time:.2f}->{max_time:.2f} ms ({growth:.2f}x)\n"
@@ -394,7 +402,9 @@ def draw_summary_diagrams():
         plt.grid(True, linestyle="--", alpha=0.4)
         plt.tight_layout()
 
-        safe_operation = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in operation)
+        safe_operation = "".join(
+            c if c.isalnum() or c in ("-", "_") else "_" for c in operation
+        )
         output_file = f"{safe_operation}_{timestamp}.png"
         output_path = os.path.join(output_dir, output_file)
         plt.savefig(output_path, dpi=150)
@@ -511,14 +521,14 @@ def save_result(database, operation, size, time_ms, elements, trial=1, status="o
         )
 
 
-def save_explain_result(database, query_name, plan_text, execution_time, trial=1, status="ok"):
+def save_explain_result(
+    database, query_name, plan_text, execution_time, trial=1, status="ok"
+):
     serialized_time = ""
     if execution_time is not None:
         serialized_time = round(execution_time, 2)
 
-    explain_file = (
-        f"results/explain/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
-    )
+    explain_file = f"results/explain/{database}_explain_trial{trial}_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.csv"
     os.makedirs("results/explain", exist_ok=True)
     with open(explain_file, "w", newline="") as f:
         writer = csv.writer(f)

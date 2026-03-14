@@ -24,6 +24,14 @@ from utils.generator import (
     generate_bulk_reviews,
     generate_bulk_users,
     generate_bulk_warehouses,
+    generate_category,
+    generate_inventory,
+    generate_order,
+    generate_order_item,
+    generate_payment,
+    generate_product,
+    generate_review,
+    generate_warehouse,
     split_starting_data,
 )
 from utils.results import save_explain_result, save_result
@@ -127,6 +135,297 @@ class UnqliteBenchmark:
         for doc in docs:
             self._store_doc(collection_name, doc)
 
+    def _collection_docs(self, collection_name):
+        col = self._get_collection(collection_name)
+        if not col.exists():
+            return []
+        return list(col.all())
+
+    def collection_count(self, collection_name):
+        return len(self._collection_docs(collection_name))
+
+    def get_max_field_id(self, collection_name, field_name="id"):
+        max_id = 0
+        for doc in self._collection_docs(collection_name):
+            value = doc.get(field_name)
+            if isinstance(value, int):
+                max_id = max(max_id, value)
+        return max_id
+
+    def get_field_ids(self, collection_name, field_name="id"):
+        ids = []
+        for doc in self._collection_docs(collection_name):
+            value = doc.get(field_name)
+            if isinstance(value, int):
+                ids.append(value)
+        return sorted(ids)
+
+    def get_docs_to_trim(self, collection_name, target_count, field_name="id"):
+        docs = self._collection_docs(collection_name)
+        excess = len(docs) - target_count
+        if excess <= 0:
+            return []
+
+        return sorted(
+            docs,
+            key=lambda doc: (
+                doc.get(field_name)
+                if isinstance(doc.get(field_name), int)
+                else doc.get("__id", 0)
+            ),
+            reverse=True,
+        )[:excess]
+
+    def delete_record_ids(self, collection_name, record_ids):
+        if not record_ids:
+            return
+        col = self._get_collection(collection_name)
+        for record_id in record_ids:
+            col.delete(record_id)
+
+    def delete_by_field(self, collection_name, field_name, values):
+        if not values:
+            return
+        col = self._get_collection(collection_name)
+        if not col.exists():
+            return
+        matching = list(col.filter(lambda doc: doc.get(field_name) in values))
+        for doc in matching:
+            col.delete(doc["__id"])
+
+    def reconcile_starting_data(self, total_records):
+        target_counts = split_starting_data(total_records)
+
+        users_to_delete = self.get_docs_to_trim("users", target_counts["users"])
+        categories_to_delete = self.get_docs_to_trim(
+            "categories", target_counts["categories"]
+        )
+        warehouses_to_delete = self.get_docs_to_trim(
+            "warehouses", target_counts["warehouses"]
+        )
+        products_to_delete = self.get_docs_to_trim(
+            "products", target_counts["products"]
+        )
+        orders_to_delete = self.get_docs_to_trim("orders", target_counts["orders"])
+
+        user_ids_to_delete = [
+            doc.get("id") for doc in users_to_delete if doc.get("id") is not None
+        ]
+        category_ids_to_delete = [
+            doc.get("id") for doc in categories_to_delete if doc.get("id") is not None
+        ]
+        warehouse_ids_to_delete = [
+            doc.get("id") for doc in warehouses_to_delete if doc.get("id") is not None
+        ]
+        product_ids_to_delete = [
+            doc.get("id") for doc in products_to_delete if doc.get("id") is not None
+        ]
+        order_ids_to_delete = [
+            doc.get("id") for doc in orders_to_delete if doc.get("id") is not None
+        ]
+
+        if user_ids_to_delete:
+            extra_order_ids = [
+                doc.get("id")
+                for doc in self._get_collection("orders").filter(
+                    lambda doc: doc.get("user_id") in user_ids_to_delete
+                )
+                if doc.get("id") is not None
+            ]
+            if extra_order_ids:
+                self.delete_by_field("payments", "order_id", extra_order_ids)
+                self.delete_by_field("order_items", "order_id", extra_order_ids)
+                self.delete_by_field("orders", "id", extra_order_ids)
+            self.delete_by_field("reviews", "user_id", user_ids_to_delete)
+            self.delete_by_field("addresses", "user_id", user_ids_to_delete)
+            self.delete_record_ids(
+                "users", [doc["__id"] for doc in users_to_delete if "__id" in doc]
+            )
+
+        if category_ids_to_delete:
+            extra_product_ids = [
+                doc.get("id")
+                for doc in self._get_collection("products").filter(
+                    lambda doc: doc.get("category_id") in category_ids_to_delete
+                )
+                if doc.get("id") is not None
+            ]
+            if extra_product_ids:
+                self.delete_by_field("order_items", "product_id", extra_product_ids)
+                self.delete_by_field("reviews", "product_id", extra_product_ids)
+                self.delete_by_field("inventory", "product_id", extra_product_ids)
+                self.delete_by_field("products", "id", extra_product_ids)
+
+            categories_col = self._get_collection("categories")
+            for doc in list(
+                categories_col.filter(
+                    lambda doc: doc.get("parent_id") in category_ids_to_delete
+                )
+            ):
+                updated = dict(doc)
+                updated.pop("__id", None)
+                updated["parent_id"] = None
+                categories_col.update(doc["__id"], self._prepare_doc(updated))
+
+            self.delete_record_ids(
+                "categories",
+                [doc["__id"] for doc in categories_to_delete if "__id" in doc],
+            )
+
+        if warehouse_ids_to_delete:
+            self.delete_by_field("inventory", "warehouse_id", warehouse_ids_to_delete)
+            self.delete_record_ids(
+                "warehouses",
+                [doc["__id"] for doc in warehouses_to_delete if "__id" in doc],
+            )
+
+        if product_ids_to_delete:
+            self.delete_by_field("order_items", "product_id", product_ids_to_delete)
+            self.delete_by_field("reviews", "product_id", product_ids_to_delete)
+            self.delete_by_field("inventory", "product_id", product_ids_to_delete)
+            self.delete_record_ids(
+                "products", [doc["__id"] for doc in products_to_delete if "__id" in doc]
+            )
+
+        if order_ids_to_delete:
+            self.delete_by_field("payments", "order_id", order_ids_to_delete)
+            self.delete_by_field("order_items", "order_id", order_ids_to_delete)
+            self.delete_record_ids(
+                "orders", [doc["__id"] for doc in orders_to_delete if "__id" in doc]
+            )
+
+        for collection_name in [
+            "order_items",
+            "reviews",
+            "inventory",
+            "addresses",
+            "payments",
+        ]:
+            docs_to_delete = self.get_docs_to_trim(
+                collection_name, target_counts[collection_name]
+            )
+            self.delete_record_ids(
+                collection_name,
+                [doc["__id"] for doc in docs_to_delete if "__id" in doc],
+            )
+
+        users_missing = target_counts["users"] - self.collection_count("users")
+        if users_missing > 0:
+            start_id = self.get_max_field_id("users") + 1
+            users = generate_bulk_users(users_missing)
+            for offset, user in enumerate(users):
+                user["id"] = start_id + offset
+            self._bulk_store("users", users)
+
+        categories_missing = target_counts["categories"] - self.collection_count(
+            "categories"
+        )
+        if categories_missing > 0:
+            existing_category_ids = self.get_field_ids("categories")
+            start_id = self.get_max_field_id("categories") + 1
+            categories = []
+            for offset in range(categories_missing):
+                category_id = start_id + offset
+                parent_id = (
+                    random.choice(existing_category_ids)
+                    if existing_category_ids and random.random() > 0.7
+                    else None
+                )
+                category = generate_category(parent_id)
+                category["id"] = category_id
+                categories.append(category)
+                existing_category_ids.append(category_id)
+            self._bulk_store("categories", categories)
+
+        warehouses_missing = target_counts["warehouses"] - self.collection_count(
+            "warehouses"
+        )
+        if warehouses_missing > 0:
+            start_id = self.get_max_field_id("warehouses") + 1
+            warehouses = [generate_warehouse() for _ in range(warehouses_missing)]
+            for offset, warehouse in enumerate(warehouses):
+                warehouse["id"] = start_id + offset
+            self._bulk_store("warehouses", warehouses)
+
+        user_ids = self.get_field_ids("users")
+        category_ids = self.get_field_ids("categories")
+        warehouse_ids = self.get_field_ids("warehouses")
+
+        products_missing = target_counts["products"] - self.collection_count("products")
+        if products_missing > 0 and category_ids:
+            start_id = self.get_max_field_id("products") + 1
+            products = [
+                generate_product(random.choice(category_ids))
+                for _ in range(products_missing)
+            ]
+            for offset, product in enumerate(products):
+                product["id"] = start_id + offset
+            self._bulk_store("products", products)
+
+        product_ids = self.get_field_ids("products")
+
+        orders_missing = target_counts["orders"] - self.collection_count("orders")
+        if orders_missing > 0 and user_ids:
+            start_id = self.get_max_field_id("orders") + 1
+            orders = [
+                generate_order(random.choice(user_ids)) for _ in range(orders_missing)
+            ]
+            for offset, order in enumerate(orders):
+                order["id"] = start_id + offset
+            self._bulk_store("orders", orders)
+
+        order_ids = self.get_field_ids("orders")
+
+        order_items_missing = target_counts["order_items"] - self.collection_count(
+            "order_items"
+        )
+        if order_items_missing > 0 and order_ids and product_ids:
+            order_items = [
+                generate_order_item(
+                    random.choice(order_ids), random.choice(product_ids)
+                )
+                for _ in range(order_items_missing)
+            ]
+            self._bulk_store("order_items", order_items)
+
+        reviews_missing = target_counts["reviews"] - self.collection_count("reviews")
+        if reviews_missing > 0 and user_ids and product_ids:
+            reviews = [
+                generate_review(random.choice(user_ids), random.choice(product_ids))
+                for _ in range(reviews_missing)
+            ]
+            self._bulk_store("reviews", reviews)
+
+        inventory_missing = target_counts["inventory"] - self.collection_count(
+            "inventory"
+        )
+        if inventory_missing > 0 and product_ids and warehouse_ids:
+            inventory = [
+                generate_inventory(
+                    random.choice(product_ids), random.choice(warehouse_ids)
+                )
+                for _ in range(inventory_missing)
+            ]
+            self._bulk_store("inventory", inventory)
+
+        addresses_missing = target_counts["addresses"] - self.collection_count(
+            "addresses"
+        )
+        if addresses_missing > 0 and user_ids:
+            addresses = [
+                generate_address(random.choice(user_ids))
+                for _ in range(addresses_missing)
+            ]
+            self._bulk_store("addresses", addresses)
+
+        payments_missing = target_counts["payments"] - self.collection_count("payments")
+        if payments_missing > 0 and order_ids:
+            payments = [
+                generate_payment(random.choice(order_ids))
+                for _ in range(payments_missing)
+            ]
+            self._bulk_store("payments", payments)
+
     def ensure_addresses_volume(self, total_records):
         target_addresses = split_starting_data(total_records)["addresses"]
         addresses = self._get_collection("addresses")
@@ -160,6 +459,8 @@ class UnqliteBenchmark:
 
         categories = generate_bulk_categories(counts["categories"])
         warehouses = generate_bulk_warehouses(counts["warehouses"])
+        for idx, warehouse in enumerate(warehouses, start=1):
+            warehouse["id"] = idx
 
         products = generate_bulk_products(
             counts["products"], list(range(1, counts["categories"] + 1))
@@ -705,27 +1006,35 @@ def run_unqlite_benchmark(size, operation_type="all", trial=1):
 
     try:
         if operation_type in ["all", "nonindexed"]:
-            if bench.needs_starting_data_refresh(size):
+            if bench.get_total_record_count() is None:
                 bench.reset_database()
                 bench.populate_starting_data(size)
+            elif bench.needs_starting_data_refresh(size):
+                bench.reconcile_starting_data(size)
             bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
-            if bench.needs_starting_data_refresh(size):
+            if bench.get_total_record_count() is None:
                 bench.reset_database()
                 bench.populate_starting_data(size)
+            elif bench.needs_starting_data_refresh(size):
+                bench.reconcile_starting_data(size)
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["explain"]:
-            if bench.needs_starting_data_refresh(size):
+            if bench.get_total_record_count() is None:
                 bench.reset_database()
                 bench.populate_starting_data(size)
+            elif bench.needs_starting_data_refresh(size):
+                bench.reconcile_starting_data(size)
             bench.run_explain_queries(trial=trial)
 
         if operation_type in ["all", "json"]:
-            if bench.needs_starting_data_refresh(size):
+            if bench.get_total_record_count() is None:
                 bench.reset_database()
                 bench.populate_starting_data(size)
+            elif bench.needs_starting_data_refresh(size):
+                bench.reconcile_starting_data(size)
             bench.run_json_queries(size, trial=trial)
 
     finally:

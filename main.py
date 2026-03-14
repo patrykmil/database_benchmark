@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+from datetime import datetime
 
 from config import SIZES
 from nosql.mongo import run_mongo_benchmark
@@ -33,6 +34,7 @@ SIZE_ALIASES = [
     (5_000, ["5000", "5k"]),
     (500_000, ["500000", "500k", "small"]),
     (1_000_000, ["1000000", "1m", "medium"]),
+    (5_000_000, ["5000000", "5m"]),
     (10_000_000, ["10000000", "10m", "large"]),
     (25_000_000, ["25000000", "25m"]),
     (50_000_000, ["50000000", "50m"]),
@@ -128,7 +130,7 @@ def main():
         for size in sizes:
             print(f"\n--- Size: {size:,} ---")
             for trial in range(1, args.trials + 1):
-                print(f"Trial {trial}/{args.trials}")
+                print(f"Trial {trial}/{args.trials} -- Start-time: {datetime.now().strftime('%H:%M:%S')}")
                 try:
                     DATABASES[db](size, OPERATIONS[args.operation], trial=trial)
                     print(f"Completed: {db} - {size:,} (trial {trial})")
