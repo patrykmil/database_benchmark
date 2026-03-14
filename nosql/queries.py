@@ -1,31 +1,37 @@
 NONINDEXED_OPERATIONS = {
     # CREATE - 6 queries
     "insert_single": lambda: {
-        "name": "test_user",
-        "email": "test@example.com",
+        "name": "test_user_single",
+        "email": "single@example.com",
+        "created_at": "2024-01-01",
         "preferences": {"theme": "dark"},
     },
-    "insert_bulk": lambda: [
-        {"name": f"user{i}", "email": f"user{i}@example.com", "preferences": {}}
-        for i in range(1000)
-    ],
+    "insert_bulk": lambda: None,
     "insert_ignore": lambda: {
-        "name": "test_user",
-        "email": "test@example.com",
+        "name": "test_user_ignore",
+        "email": "ignore@example.com",
+        "created_at": "2024-01-01",
         "preferences": {"theme": "dark"},
     },
     "insert_upsert": lambda: {
-        "$setOnInsert": {"name": "test_user", "created_at": "2024-01-01"},
-        "$set": {"preferences": {"theme": "light"}},
+        "filter": {"email": "upsert@example.com"},
+        "update": {
+            "$setOnInsert": {"created_at": "2024-01-01"},
+            "$set": {
+                "name": "test_user_upsert",
+                "preferences": {"theme": "light"},
+            },
+        },
     },
     "insert_many": lambda: [{"name": f"cat{i}"} for i in range(100)],
     "insert_returning": lambda: {
         "name": "test_user",
-        "email": "test@example.com",
+        "email": "returning@example.com",
+        "created_at": "2024-01-01",
         "preferences": {"theme": "dark"},
     },
     # READ - 6 queries
-    "select_single": lambda id: {"_id": id},
+    "select_single": lambda: {"_id": 1},
     "select_where": lambda: {"email": {"$regex": "test"}},
     "select_join": lambda: [
         {
@@ -36,7 +42,15 @@ NONINDEXED_OPERATIONS = {
                 "as": "user",
             }
         },
-        {"$limit": 100},
+        {"$unwind": "$user"},
+        {
+            "$project": {
+                "_id": 1,
+                "user_name": "$user.name",
+                "total": 1,
+                "status": 1,
+            }
+        },
     ],
     "select_aggregate": lambda: [
         {"$match": {"user_id": 1}},
@@ -56,14 +70,40 @@ NONINDEXED_OPERATIONS = {
     ],
     "select_distinct": lambda: [{"$group": {"_id": "$status"}}],
     # UPDATE - 6 queries
-    "update_single": lambda: [{"$set": {"name": "updated_name"}}],
-    "update_many": lambda: [{"$set": {"verified": True}}],
-    "update_in": lambda: {"$set": {"status": "active"}},
-    "update_case": lambda: [{"$set": {"status": "processed"}}],
-    "update_join": lambda: [{"$set": {"status": "processed"}}],
-    "update_upsert": lambda: {"$set": {"preferences": {"theme": "light"}}},
+    "update_single": lambda: {
+        "filter": {"_id": 1},
+        "update": {"$set": {"name": "updated_name"}},
+    },
+    "update_many": lambda: {
+        "filter": {"_id": {"$gte": 1, "$lte": 1000}},
+        "update": {"$set": {"preferences": {"verified": True}}},
+    },
+    "update_in": lambda: {
+        "filter": {"_id": {"$in": [1, 2, 3]}},
+        "update": {"$set": {"name": "updated_user"}},
+    },
+    "update_case": lambda: {
+        "operations": [
+            {"filter": {"_id": 1}, "update": {"$set": {"name": "user_active"}}},
+            {"filter": {"_id": 2}, "update": {"$set": {"name": "user_inactive"}}},
+        ]
+    },
+    "update_join": lambda: {
+        "filter": {"user_id": 1},
+        "update": {"$set": {"status": "processed"}},
+    },
+    "update_upsert": lambda: {
+        "filter": {"name": "existing_product"},
+        "update": {
+            "$set": {
+                "price": 29.99,
+                "category_id": 1,
+                "attributes": {"color": "blue"},
+            }
+        },
+    },
     # DELETE - 6 queries
-    "delete_single": lambda id: {"_id": id},
+    "delete_single": lambda: {"_id": -1},
     "delete_many": lambda: {"created_at": {"$lt": "2020-01-01"}},
     "delete_in": lambda: {"_id": {"$in": [100, 101, 102]}},
     "delete_cascade": lambda: {"user_id": 1},
@@ -76,7 +116,9 @@ NONINDEXED_OPERATIONS = {
                 "as": "user",
             }
         },
+        {"$unwind": "$user"},
         {"$match": {"user.created_at": {"$lt": "2023-01-01"}}},
+        {"$project": {"_id": 1}},
     ],
     "delete_truncate": lambda: {},
 }
@@ -89,15 +131,7 @@ INDEXED_OPERATIONS = {
         "created_at": "2024-01-01",
         "preferences": {"theme": "dark"},
     },
-    "index_insert_bulk": lambda: [
-        {
-            "name": f"bulkuser{i}",
-            "email": f"bulkuser{i}@example.com",
-            "created_at": "2024-01-01",
-            "preferences": {},
-        }
-        for i in range(1000)
-    ],
+    "index_insert_bulk": lambda: None,
     "index_insert_ignore": lambda: {
         "name": "indexed_product",
         "price": 99.99,
@@ -124,7 +158,6 @@ INDEXED_OPERATIONS = {
     "index_select_single": lambda: {"email": "user1000@example.com"},
     "index_select_where": lambda: {"created_at": {"$gte": "2024-01-01"}},
     "index_select_join": lambda: [
-        {"$match": {"users.created_at": {"$gte": "2024-01-01"}}},
         {
             "$lookup": {
                 "from": "users",
@@ -133,7 +166,16 @@ INDEXED_OPERATIONS = {
                 "as": "user",
             }
         },
-        {"$limit": 100},
+        {"$unwind": "$user"},
+        {"$match": {"user.created_at": {"$gte": "2024-01-01"}}},
+        {
+            "$project": {
+                "_id": 1,
+                "user_name": "$user.name",
+                "total": 1,
+                "status": 1,
+            }
+        },
     ],
     "index_select_aggregate": lambda: [
         {"$match": {"user_id": 1}},
@@ -153,26 +195,37 @@ INDEXED_OPERATIONS = {
     ],
     "index_select_distinct": lambda: [{"$group": {"_id": "$status"}}],
     # UPDATE - 6 queries (using indexed fields)
-    "index_update_single": lambda: [{"$set": {"name": "updated_email_user"}}],
-    "index_update_many": lambda: {"$mul": {"price": 1.1}},
-    "index_update_in": lambda: {"$set": {"price": 9.99}},
-    "index_update_case": lambda: [
-        {
-            "$facet": {
-                "shipped": [{"$match": {"_id": 1}}, {"$set": {"status": "shipped"}}],
-                "delivered": [
-                    {"$match": {"_id": 2}},
-                    {"$set": {"status": "delivered"}},
-                ],
-            }
-        }
-    ],
-    "index_update_join": lambda: [
-        {"$set": {"status": "processed"}},
-        {"$match": {"user.email": "user1@example.com"}},
-    ],
+    "index_update_single": lambda: {
+        "filter": {"email": "user1@example.com"},
+        "update": {"$set": {"name": "updated_email_user"}},
+    },
+    "index_update_many": lambda: {
+        "filter": {"category_id": 1},
+        "update": {"$mul": {"price": 1.1}},
+    },
+    "index_update_in": lambda: {
+        "filter": {"category_id": {"$in": [1, 2, 3]}},
+        "update": {"$set": {"price": 9.99}},
+    },
+    "index_update_case": lambda: {
+        "operations": [
+            {"filter": {"_id": 1}, "update": {"$set": {"status": "shipped"}}},
+            {"filter": {"_id": 2}, "update": {"$set": {"status": "delivered"}}},
+        ]
+    },
+    "index_update_join": lambda: {
+        "filter": {"user_id": 1},
+        "update": {"$set": {"status": "processed"}},
+    },
     "index_update_upsert": lambda: {
-        "$set": {"price": 29.99, "attributes": {"color": "blue"}},
+        "filter": {"name": "existing_product"},
+        "update": {
+            "$set": {
+                "price": 29.99,
+                "category_id": 1,
+                "attributes": {"color": "blue"},
+            }
+        },
     },
     # DELETE - 6 queries (using indexed fields)
     "index_delete_single": lambda: {"email": "delete@example.com"},
@@ -188,15 +241,11 @@ INDEXED_OPERATIONS = {
                 "as": "user",
             }
         },
+        {"$unwind": "$user"},
         {"$match": {"user.created_at": {"$lt": "2023-01-01"}}},
+        {"$project": {"_id": 1}},
     ],
     "index_delete_truncate": lambda: {},
-}
-
-AGGREGATE_OPERATIONS = {
-    "aggregate_count": [{"$count": "total"}],
-    "aggregate_sum": [{"$group": {"_id": None, "total": {"$sum": "$total"}}}],
-    "aggregate_avg": [{"$group": {"_id": None, "avg": {"$avg": "$price"}}}],
 }
 
 EXPLAIN_OPERATIONS = {

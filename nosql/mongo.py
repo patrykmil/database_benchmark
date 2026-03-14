@@ -186,7 +186,7 @@ class MongoBenchmark:
                 doc = query_func()
                 self.db.users.insert_one(doc)
             elif name == "insert_bulk":
-                docs = query_func()
+                docs = generate_bulk_users(1000)
                 self.db.users.insert_many(docs)
             elif name == "insert_ignore":
                 doc = query_func()
@@ -195,18 +195,18 @@ class MongoBenchmark:
                 except:
                     pass
             elif name == "insert_upsert":
-                doc = query_func()
-                self.db.users.update_one(
-                    {"email": "test@example.com"}, doc, upsert=True
-                )
+                # SQL: INSERT ... ON CONFLICT (email) DO UPDATE SET name, preferences
+                data = query_func()
+                self.db.users.update_one(data["filter"], data["update"], upsert=True)
             elif name == "insert_many":
                 docs = query_func()
                 self.db.categories.insert_many(docs)
             elif name == "insert_returning":
                 doc = query_func()
-                self.db.users.insert_one(doc)
+                result = self.db.users.insert_one(doc)
+                _ = result.inserted_id
             elif name == "select_single":
-                doc_filter = query_func(1)
+                doc_filter = query_func()
                 list(self.db.users.find(doc_filter))
             elif name == "select_where":
                 doc_filter = query_func()
@@ -224,25 +224,26 @@ class MongoBenchmark:
                 pipeline = query_func()
                 list(self.db.orders.aggregate(pipeline))
             elif name == "update_single":
-                update_doc = query_func()
-                self.db.users.update_one({"_id": 1}, update_doc)
+                data = query_func()
+                self.db.users.update_one(data["filter"], data["update"])
             elif name == "update_many":
-                update_doc = query_func()
-                self.db.users.update_many({}, update_doc)
+                data = query_func()
+                self.db.users.update_many(data["filter"], data["update"])
             elif name == "update_in":
-                update_doc = query_func()
-                self.db.users.update_many({"_id": {"$in": [1, 2, 3]}}, update_doc)
+                data = query_func()
+                self.db.users.update_many(data["filter"], data["update"])
             elif name == "update_case":
-                status = "unsupported"
+                data = query_func()
+                for op in data["operations"]:
+                    self.db.users.update_one(op["filter"], op["update"])
             elif name == "update_join":
-                status = "unsupported"
+                data = query_func()
+                self.db.orders.update_many(data["filter"], data["update"])
             elif name == "update_upsert":
-                doc = query_func()
-                self.db.products.update_one(
-                    {"name": "upsert_product"}, {"$set": doc}, upsert=True
-                )
+                data = query_func()
+                self.db.products.update_one(data["filter"], data["update"], upsert=True)
             elif name == "delete_single":
-                doc_filter = query_func(999999)
+                doc_filter = query_func()
                 self.db.users.delete_one(doc_filter)
             elif name == "delete_many":
                 doc_filter = query_func()
@@ -254,7 +255,11 @@ class MongoBenchmark:
                 doc_filter = query_func()
                 self.db.orders.delete_many(doc_filter)
             elif name == "delete_join":
-                status = "unsupported"
+                pipeline = query_func()
+                matching = list(self.db.orders.aggregate(pipeline))
+                if matching:
+                    ids = [doc["_id"] for doc in matching]
+                    self.db.orders.delete_many({"_id": {"$in": ids}})
             elif name == "delete_truncate":
                 self.db.addresses.delete_many({})
 
@@ -277,7 +282,7 @@ class MongoBenchmark:
                 doc = query_func()
                 self.db.users.insert_one(doc)
             elif name == "index_insert_bulk":
-                docs = query_func()
+                docs = generate_bulk_users(1000)
                 self.db.users.insert_many(docs)
             elif name == "index_insert_ignore":
                 doc = query_func()
@@ -288,14 +293,15 @@ class MongoBenchmark:
             elif name == "index_insert_upsert":
                 doc = query_func()
                 self.db.products.update_one(
-                    {"name": "upsert_product"}, {"$set": doc}, upsert=True
+                    {"name": doc["name"]}, {"$set": doc}, upsert=True
                 )
             elif name == "index_insert_many":
                 docs = query_func()
                 self.db.products.insert_many(docs)
             elif name == "index_insert_returning":
                 doc = query_func()
-                self.db.products.insert_one(doc)
+                result = self.db.products.insert_one(doc)
+                _ = result.inserted_id
             elif name == "index_select_single":
                 doc_filter = query_func()
                 list(self.db.users.find(doc_filter))
@@ -315,25 +321,24 @@ class MongoBenchmark:
                 pipeline = query_func()
                 list(self.db.orders.aggregate(pipeline))
             elif name == "index_update_single":
-                update_doc = query_func()
-                self.db.users.update_one({"email": "user1@example.com"}, update_doc)
+                data = query_func()
+                self.db.users.update_one(data["filter"], data["update"])
             elif name == "index_update_many":
-                update_doc = query_func()
-                self.db.products.update_many({"category_id": 1}, update_doc)
+                data = query_func()
+                self.db.products.update_many(data["filter"], data["update"])
             elif name == "index_update_in":
-                update_doc = query_func()
-                self.db.products.update_many(
-                    {"category_id": {"$in": [1, 2, 3]}}, update_doc
-                )
+                data = query_func()
+                self.db.products.update_many(data["filter"], data["update"])
             elif name == "index_update_case":
-                status = "unsupported"
+                data = query_func()
+                for op in data["operations"]:
+                    self.db.orders.update_one(op["filter"], op["update"])
             elif name == "index_update_join":
-                status = "unsupported"
+                data = query_func()
+                self.db.orders.update_many(data["filter"], data["update"])
             elif name == "index_update_upsert":
-                doc = query_func()
-                self.db.products.update_one(
-                    {"name": "existing_product"}, {"$set": doc}, upsert=True
-                )
+                data = query_func()
+                self.db.products.update_one(data["filter"], data["update"], upsert=True)
             elif name == "index_delete_single":
                 doc_filter = query_func()
                 self.db.users.delete_one(doc_filter)
@@ -347,7 +352,11 @@ class MongoBenchmark:
                 doc_filter = query_func()
                 self.db.orders.delete_many(doc_filter)
             elif name == "index_delete_join":
-                status = "unsupported"
+                pipeline = query_func()
+                matching = list(self.db.orders.aggregate(pipeline))
+                if matching:
+                    ids = [doc["_id"] for doc in matching]
+                    self.db.orders.delete_many({"_id": {"$in": ids}})
             elif name == "index_delete_truncate":
                 self.db.addresses.delete_many({})
 

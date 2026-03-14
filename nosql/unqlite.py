@@ -1,5 +1,7 @@
 import os
+import random
 import time
+from datetime import date, datetime
 
 import unqlite
 
@@ -11,6 +13,7 @@ from nosql.queries import (
     NONINDEXED_OPERATIONS,
 )
 from utils.generator import (
+    generate_address,
     generate_bulk_addresses,
     generate_bulk_categories,
     generate_bulk_inventory,
@@ -53,13 +56,38 @@ class UnqliteBenchmark:
             raise RuntimeError("UnQLite is not connected")
         return self.db.collection(name)
 
-    def bulk_insert(self, collection_name, count, generator_func):
-        docs = generator_func(count)
+    def _prepare_doc(self, doc):
+        if isinstance(doc, dict):
+            return {
+                key: self._prepare_doc(value)
+                for key, value in doc.items()
+                if key != "__id"
+            }
+        if isinstance(doc, list):
+            return [self._prepare_doc(value) for value in doc]
+        if isinstance(doc, (datetime, date)):
+            return doc.isoformat()
+        return doc
+
+    def _store_doc(self, collection_name, doc):
         col = self._get_collection(collection_name)
         if not col.exists():
             col.create()
+        return col.store(self._prepare_doc(doc))
+
+    def _update_doc(self, col, record_id, updates):
+        current = col.fetch(record_id) or {}
+        current_prepared = self._prepare_doc(current)
+        merged = dict(current_prepared) if isinstance(current_prepared, dict) else {}
+        prepared_updates = self._prepare_doc(updates)
+        if isinstance(prepared_updates, dict):
+            merged.update(prepared_updates)
+        col.update(record_id, merged)
+
+    def bulk_insert(self, collection_name, count, generator_func):
+        docs = generator_func(count)
         for doc in docs:
-            rid = col.store(doc)
+            rid = self._store_doc(collection_name, doc)
             self.record_ids.append(rid)
 
     def get_total_record_count(self):
@@ -96,11 +124,32 @@ class UnqliteBenchmark:
         return need
 
     def _bulk_store(self, collection_name, docs):
-        col = self._get_collection(collection_name)
-        if not col.exists():
-            col.create()
         for doc in docs:
-            col.store(doc)
+            self._store_doc(collection_name, doc)
+
+    def ensure_addresses_volume(self, total_records):
+        target_addresses = split_starting_data(total_records)["addresses"]
+        addresses = self._get_collection("addresses")
+        if not addresses.exists():
+            addresses.create()
+            current_addresses = 0
+        else:
+            current_addresses = len(addresses.all())
+
+        if current_addresses >= target_addresses:
+            return
+
+        users = self._get_collection("users")
+        if not users.exists():
+            return
+
+        user_ids = [doc.get("id") for doc in users.all() if doc.get("id") is not None]
+        if not user_ids:
+            return
+
+        missing = target_addresses - current_addresses
+        addresses = [generate_address(random.choice(user_ids)) for _ in range(missing)]
+        self._bulk_store("addresses", addresses)
 
     def populate_starting_data(self, total_records):
         counts = split_starting_data(total_records)
@@ -153,10 +202,6 @@ class UnqliteBenchmark:
         unsupported_nonindexed = {
             "select_join",
             "select_distinct",
-            "update_case",
-            "update_join",
-            "delete_in",
-            "delete_cascade",
             "delete_join",
         }
 
@@ -173,71 +218,71 @@ class UnqliteBenchmark:
                 continue
 
             if name == "insert_single":
-                user = {
-                    "name": "test_user",
-                    "email": "test@example.com",
-                    "preferences": {"theme": "dark"},
-                }
+                doc = NONINDEXED_OPERATIONS[name]()
                 col = self._get_collection("users")
                 if not col.exists():
                     col.create()
                 start = time.time()
-                rid = col.store(user)
-                self.record_ids.append(rid)
+                self._store_doc("users", doc)
                 elapsed = (time.time() - start) * 1000
             elif name == "insert_bulk":
-                users = generate_bulk_users(1000)
+                docs = generate_bulk_users(1000)
                 col = self._get_collection("users")
+                if not col.exists():
+                    col.create()
                 start = time.time()
-                for u in users:
-                    rid = col.store(u)
-                    self.record_ids.append(rid)
+                for doc in docs:
+                    self._store_doc("users", doc)
                 elapsed = (time.time() - start) * 1000
             elif name == "insert_ignore":
-                user = {
-                    "name": "test_user",
-                    "email": "test@example.com",
-                    "preferences": {"theme": "dark"},
-                }
+                doc = NONINDEXED_OPERATIONS[name]()
                 col = self._get_collection("users")
+                if not col.exists():
+                    col.create()
                 start = time.time()
                 try:
-                    col.store(user)
-                except:
+                    self._store_doc("users", doc)
+                except Exception:
                     pass
                 elapsed = (time.time() - start) * 1000
             elif name == "insert_upsert":
-                user = {
-                    "name": "test_user",
-                    "email": "test@example.com",
-                    "preferences": {"theme": "light"},
-                }
+                data = NONINDEXED_OPERATIONS[name]()
                 col = self._get_collection("users")
+                if not col.exists():
+                    col.create()
                 start = time.time()
-                col.store(user)
+                self._store_doc(
+                    "users",
+                    {
+                        "name": data["update"]["$set"]["name"],
+                        "email": data["filter"]["email"],
+                        "created_at": data["update"]["$setOnInsert"]["created_at"],
+                        "preferences": data["update"]["$set"]["preferences"],
+                    },
+                )
                 elapsed = (time.time() - start) * 1000
             elif name == "insert_many":
+                docs = NONINDEXED_OPERATIONS[name]()
                 col = self._get_collection("categories")
                 if not col.exists():
                     col.create()
                 start = time.time()
-                for i in range(100):
-                    col.store({"name": f"cat{i}"})
+                for doc in docs:
+                    self._store_doc("categories", doc)
                 elapsed = (time.time() - start) * 1000
             elif name == "insert_returning":
-                user = {
-                    "name": "test_user",
-                    "email": "test@example.com",
-                    "preferences": {"theme": "dark"},
-                }
+                doc = NONINDEXED_OPERATIONS[name]()
                 col = self._get_collection("users")
+                if not col.exists():
+                    col.create()
                 start = time.time()
-                col.store(user)
+                rid = self._store_doc("users", doc)
+                _ = rid
                 elapsed = (time.time() - start) * 1000
             elif name == "select_single":
                 col = self._get_collection("users")
                 start = time.time()
-                list(col.all())
+                list(col.filter(lambda doc: doc.get("id") == 1))
                 elapsed = (time.time() - start) * 1000
             elif name == "select_where":
                 col = self._get_collection("users")
@@ -247,48 +292,116 @@ class UnqliteBenchmark:
             elif name == "select_aggregate":
                 col = self._get_collection("orders")
                 start = time.time()
-                count = len(col.all()) if col.exists() else 0
+                if col.exists():
+                    matching = list(col.filter(lambda doc: doc.get("user_id") == 1))
+                    count = len(matching)
+                    total = sum(doc.get("total") or 0 for doc in matching)
+                    avg = total / count if count > 0 else 0
+                else:
+                    count, total, avg = 0, 0, 0
                 elapsed = (time.time() - start) * 1000
             elif name == "select_pagination":
                 col = self._get_collection("users")
                 start = time.time()
-                list(col.all()[:10])
+                all_docs = col.all()
+                sorted_docs = sorted(
+                    all_docs, key=lambda d: d.get("created_at") or "", reverse=True
+                )
+                _ = sorted_docs[0:10]
                 elapsed = (time.time() - start) * 1000
             elif name == "update_single":
                 col = self._get_collection("users")
                 start = time.time()
-                if self.record_ids:
-                    col.update(self.record_ids[0], {"name": "updated_name"})
+                matching = list(col.filter(lambda doc: doc.get("id") == 1))
+                for doc in matching:
+                    self._update_doc(col, doc["__id"], {"name": "updated_name"})
                 elapsed = (time.time() - start) * 1000
             elif name == "update_many":
                 col = self._get_collection("users")
                 start = time.time()
-                for rid in self.record_ids[:100]:
-                    col.update(rid, {"verified": True})
+                matching = list(
+                    col.filter(lambda doc: 1 <= (doc.get("id") or 0) <= 1000)
+                )
+                for doc in matching:
+                    self._update_doc(
+                        col, doc["__id"], {"preferences": {"verified": True}}
+                    )
                 elapsed = (time.time() - start) * 1000
             elif name == "update_in":
                 col = self._get_collection("users")
                 start = time.time()
-                for rid in self.record_ids[:3]:
-                    col.update(rid, {"verified": True})
+                matching = list(col.filter(lambda doc: doc.get("id") in [1, 2, 3]))
+                for doc in matching:
+                    self._update_doc(col, doc["__id"], {"name": "updated_user"})
+                elapsed = (time.time() - start) * 1000
+            elif name == "update_case":
+                col = self._get_collection("users")
+                start = time.time()
+                for doc in col.filter(lambda doc: doc.get("id") == 1):
+                    self._update_doc(col, doc["__id"], {"name": "user_active"})
+                for doc in col.filter(lambda doc: doc.get("id") == 2):
+                    self._update_doc(col, doc["__id"], {"name": "user_inactive"})
+                elapsed = (time.time() - start) * 1000
+            elif name == "update_join":
+                col = self._get_collection("orders")
+                start = time.time()
+                if col.exists():
+                    matching = list(col.filter(lambda doc: doc.get("user_id") == 1))
+                    for doc in matching:
+                        self._update_doc(col, doc["__id"], {"status": "processed"})
                 elapsed = (time.time() - start) * 1000
             elif name == "update_upsert":
                 col = self._get_collection("products")
                 if not col.exists():
                     col.create()
                 start = time.time()
-                col.store({"name": "upsert_product", "price": 29.99})
+                self._store_doc(
+                    "products",
+                    {
+                        "name": "existing_product",
+                        "price": 29.99,
+                        "category_id": 1,
+                        "attributes": {"color": "blue"},
+                    },
+                )
                 elapsed = (time.time() - start) * 1000
             elif name == "delete_single":
                 col = self._get_collection("users")
                 start = time.time()
-                if self.record_ids:
-                    col.delete(self.record_ids[-1])
+                matching = list(col.filter(lambda doc: doc.get("id") == -1))
+                for doc in matching:
+                    col.delete(doc["__id"])
                 elapsed = (time.time() - start) * 1000
             elif name == "delete_many":
                 col = self._get_collection("users")
                 start = time.time()
-                list(col.filter(lambda doc: doc.get("created_at", "") < "2020-01-01"))
+                matching = list(
+                    col.filter(
+                        lambda doc: (
+                            doc.get("created_at")
+                            and doc.get("created_at") < "2020-01-01"
+                        )
+                    )
+                )
+                for doc in matching:
+                    col.delete(doc["__id"])
+                elapsed = (time.time() - start) * 1000
+            elif name == "delete_in":
+                col = self._get_collection("users")
+                start = time.time()
+                matching = list(
+                    col.filter(lambda doc: doc.get("id") in [100, 101, 102])
+                )
+                for doc in matching:
+                    col.delete(doc["__id"])
+                elapsed = (time.time() - start) * 1000
+            elif name == "delete_cascade":
+                col = self._get_collection("orders")
+                start = time.time()
+                if col.exists():
+                    matching = list(col.filter(lambda doc: doc.get("user_id") == 1))
+                    for doc in matching:
+                        col.delete(doc["__id"])
                 elapsed = (time.time() - start) * 1000
             elif name == "delete_truncate":
                 col = self._get_collection("addresses")
@@ -298,7 +411,8 @@ class UnqliteBenchmark:
                     col.create()
                     elapsed = (time.time() - start) * 1000
                 else:
-                    status = "unsupported"
+                    start = time.time()
+                    elapsed = (time.time() - start) * 1000
             else:
                 status = "unsupported"
 
@@ -307,22 +421,13 @@ class UnqliteBenchmark:
                 "unqlite", name, size, elapsed, size, trial=trial, status=status
             )
 
+        self.ensure_addresses_volume(size)
         return results
 
     def run_indexed_queries(self, size, trial=1):
         results = {}
         unsupported_indexed = {
             "index_select_join",
-            "index_select_aggregate",
-            "index_select_pagination",
-            "index_select_distinct",
-            "index_update_many",
-            "index_update_in",
-            "index_update_case",
-            "index_update_join",
-            "index_update_upsert",
-            "index_delete_in",
-            "index_delete_cascade",
             "index_delete_join",
             "index_delete_truncate",
         }
@@ -340,48 +445,58 @@ class UnqliteBenchmark:
                 continue
 
             if name == "index_insert_single":
+                doc = INDEXED_OPERATIONS[name]()
                 col = self._get_collection("users")
                 if not col.exists():
                     col.create()
                 start = time.time()
-                col.store(
-                    {
-                        "name": "indexed_user",
-                        "email": "indexed@example.com",
-                        "created_at": "2024-01-01",
-                    }
-                )
+                self._store_doc("users", doc)
                 elapsed = (time.time() - start) * 1000
             elif name == "index_insert_bulk":
+                docs = generate_bulk_users(1000)
                 col = self._get_collection("users")
+                if not col.exists():
+                    col.create()
                 start = time.time()
-                for i in range(1000):
-                    col.store(
-                        {"name": f"bulkuser{i}", "email": f"bulkuser{i}@example.com"}
-                    )
+                for doc in docs:
+                    self._store_doc("users", doc)
                 elapsed = (time.time() - start) * 1000
             elif name == "index_insert_ignore":
+                doc = INDEXED_OPERATIONS[name]()
                 col = self._get_collection("products")
                 if not col.exists():
                     col.create()
                 start = time.time()
-                col.store({"name": "indexed_product", "price": 99.99, "category_id": 1})
+                try:
+                    self._store_doc("products", doc)
+                except Exception:
+                    pass
                 elapsed = (time.time() - start) * 1000
             elif name == "index_insert_upsert":
+                doc = INDEXED_OPERATIONS[name]()
                 col = self._get_collection("products")
+                if not col.exists():
+                    col.create()
                 start = time.time()
-                col.store({"name": "upsert_product", "price": 49.99})
+                self._store_doc("products", doc)
                 elapsed = (time.time() - start) * 1000
             elif name == "index_insert_many":
+                docs = INDEXED_OPERATIONS[name]()
                 col = self._get_collection("products")
+                if not col.exists():
+                    col.create()
                 start = time.time()
-                for i in range(100):
-                    col.store({"name": f"product{i}", "price": 10.0, "category_id": 1})
+                for doc in docs:
+                    self._store_doc("products", doc)
                 elapsed = (time.time() - start) * 1000
             elif name == "index_insert_returning":
+                doc = INDEXED_OPERATIONS[name]()
                 col = self._get_collection("products")
+                if not col.exists():
+                    col.create()
                 start = time.time()
-                col.store({"name": "returning_product", "price": 19.99})
+                rid = self._store_doc("products", doc)
+                _ = rid
                 elapsed = (time.time() - start) * 1000
             elif name == "index_select_single":
                 col = self._get_collection("users")
@@ -391,23 +506,155 @@ class UnqliteBenchmark:
             elif name == "index_select_where":
                 col = self._get_collection("users")
                 start = time.time()
-                list(col.filter(lambda doc: doc.get("created_at", "") >= "2024-01-01"))
+                list(
+                    col.filter(
+                        lambda doc: (doc.get("created_at") or "") >= "2024-01-01"
+                    )
+                )
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_select_aggregate":
+                col = self._get_collection("orders")
+                start = time.time()
+                if col.exists():
+                    matching = list(col.filter(lambda doc: doc.get("user_id") == 1))
+                    count = len(matching)
+                    total = sum(doc.get("total") or 0 for doc in matching)
+                    avg = total / count if count > 0 else 0
+                else:
+                    count, total, avg = 0, 0, 0
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_select_pagination":
+                col = self._get_collection("orders")
+                start = time.time()
+                if col.exists():
+                    all_docs = col.all()
+                    sorted_docs = sorted(
+                        all_docs,
+                        key=lambda d: d.get("created_at") or "",
+                        reverse=True,
+                    )
+                    _ = sorted_docs[0:10]
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_select_distinct":
+                col = self._get_collection("orders")
+                start = time.time()
+                if col.exists():
+                    statuses = set()
+                    for doc in col.all():
+                        statuses.add(doc.get("status"))
                 elapsed = (time.time() - start) * 1000
             elif name == "index_update_single":
                 col = self._get_collection("users")
                 start = time.time()
-                list(col.filter(lambda doc: doc.get("email") == "user1@example.com"))
+                matching = list(
+                    col.filter(lambda doc: doc.get("email") == "user1@example.com")
+                )
+                for doc in matching:
+                    self._update_doc(col, doc["__id"], {"name": "updated_email_user"})
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_update_many":
+                col = self._get_collection("products")
+                start = time.time()
+                if col.exists():
+                    matching = list(col.filter(lambda doc: doc.get("category_id") == 1))
+                    for doc in matching:
+                        new_price = (doc.get("price") or 0) * 1.1
+                        self._update_doc(col, doc["__id"], {"price": new_price})
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_update_in":
+                col = self._get_collection("products")
+                start = time.time()
+                if col.exists():
+                    matching = list(
+                        col.filter(lambda doc: doc.get("category_id") in [1, 2, 3])
+                    )
+                    for doc in matching:
+                        self._update_doc(col, doc["__id"], {"price": 9.99})
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_update_case":
+                col = self._get_collection("orders")
+                start = time.time()
+                if col.exists():
+                    for doc in col.filter(lambda doc: doc.get("id") == 1):
+                        self._update_doc(col, doc["__id"], {"status": "shipped"})
+                    for doc in col.filter(lambda doc: doc.get("id") == 2):
+                        self._update_doc(col, doc["__id"], {"status": "delivered"})
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_update_join":
+                col = self._get_collection("orders")
+                start = time.time()
+                if col.exists():
+                    matching = list(col.filter(lambda doc: doc.get("user_id") == 1))
+                    for doc in matching:
+                        self._update_doc(col, doc["__id"], {"status": "processed"})
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_update_upsert":
+                col = self._get_collection("products")
+                if not col.exists():
+                    col.create()
+                start = time.time()
+                self._store_doc(
+                    "products",
+                    {
+                        "name": "existing_product",
+                        "price": 29.99,
+                        "category_id": 1,
+                        "attributes": {"color": "blue"},
+                    },
+                )
                 elapsed = (time.time() - start) * 1000
             elif name == "index_delete_single":
                 col = self._get_collection("users")
                 start = time.time()
-                list(col.filter(lambda doc: doc.get("email") == "delete@example.com"))
+                matching = list(
+                    col.filter(lambda doc: doc.get("email") == "delete@example.com")
+                )
+                for doc in matching:
+                    col.delete(doc["__id"])
                 elapsed = (time.time() - start) * 1000
             elif name == "index_delete_many":
                 col = self._get_collection("users")
                 start = time.time()
-                list(col.filter(lambda doc: doc.get("created_at", "") < "2020-01-01"))
+                matching = list(
+                    col.filter(
+                        lambda doc: (
+                            doc.get("created_at")
+                            and doc.get("created_at") < "2020-01-01"
+                        )
+                    )
+                )
+                for doc in matching:
+                    col.delete(doc["__id"])
                 elapsed = (time.time() - start) * 1000
+            elif name == "index_delete_in":
+                col = self._get_collection("products")
+                start = time.time()
+                if col.exists():
+                    matching = list(
+                        col.filter(lambda doc: doc.get("category_id") in [100, 101])
+                    )
+                    for doc in matching:
+                        col.delete(doc["__id"])
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_delete_cascade":
+                col = self._get_collection("orders")
+                start = time.time()
+                if col.exists():
+                    matching = list(col.filter(lambda doc: doc.get("user_id") == 1))
+                    for doc in matching:
+                        col.delete(doc["__id"])
+                elapsed = (time.time() - start) * 1000
+            elif name == "index_delete_truncate":
+                # SQL: DELETE FROM addresses
+                col = self._get_collection("addresses")
+                if col.exists():
+                    start = time.time()
+                    col.drop()
+                    col.create()
+                    elapsed = (time.time() - start) * 1000
+                else:
+                    start = time.time()
+                    elapsed = (time.time() - start) * 1000
             else:
                 status = "unsupported"
 
@@ -416,6 +663,7 @@ class UnqliteBenchmark:
                 "unqlite", name, size, elapsed, size, trial=trial, status=status
             )
 
+        self.ensure_addresses_volume(size)
         return results
 
     def run_explain_queries(self, trial=1):
