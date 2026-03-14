@@ -10,7 +10,7 @@ complete -c python -n $main_py_cond -l operation -r -f -d 'Operation type to run
 
 # --size
 complete -c python -n $main_py_cond -l size -r -f -d 'Size of test data' \
-    -a "5000\t'5 thousand rows' 500000\t'500 thousand rows' 1000000\t'1 million rows' 10000000\t'10 million rows' all\t'All sizes'"
+    -a "5k\t'5 thousand rows' 500k\t'500 thousand rows' 1m\t'1 million rows' 10m\t'10 million rows' 25m\t'25 million rows' 50m\t'50 million rows' all\t'All sizes'"
 
 # --trials
 complete -c python -n $main_py_cond -l trials -r -f -d 'Number of trials to run' \

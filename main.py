@@ -29,16 +29,17 @@ OPERATIONS = {
     "all": "all",
 }
 
-SIZES_MAP = {
-    "5000": 5_000,
-    "500000": 500_000,
-    "1000000": 1_000_000,
-    "10000000": 10_000_000,
-    "small": 500_000,
-    "medium": 1_000_000,
-    "large": 10_000_000,
-    "all": "all",
-}
+SIZE_ALIASES = [
+    (5_000, ["5000", "5k"]),
+    (500_000, ["500000", "500k", "small"]),
+    (1_000_000, ["1000000", "1m", "medium"]),
+    (10_000_000, ["10000000", "10m", "large"]),
+    (25_000_000, ["25000000", "25m"]),
+    (50_000_000, ["50000000", "50m"]),
+    ("all", ["all"]),
+]
+
+SIZES_MAP = {alias: size for size, aliases in SIZE_ALIASES for alias in aliases}
 
 
 def main():
@@ -60,8 +61,7 @@ def main():
         choices=list(SIZES_MAP.keys()),
         default="all",
         help=(
-            "Size profile: small/medium/large "
-            "(500000/1000000/10000000), exact numeric value, or all"
+            "Size profile: small/medium/large (500000/1000000/10000000), exact numeric value, or all"
         ),
     )
     parser.add_argument(
@@ -74,8 +74,7 @@ def main():
         "--draw",
         action="store_true",
         help=(
-            "Draw line diagrams from results/benchmark_summary.csv "
-            "and save to results/diagrams"
+            "Draw line diagrams from results/benchmark_summary.csv and save to results/diagrams"
         ),
     )
     parser.add_argument(

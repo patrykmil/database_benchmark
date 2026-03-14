@@ -60,7 +60,7 @@ python main.py --analyze
 
 **--operation**: `nonindexed`, `indexed`, `explain`, `json`, `all`
 
-**--size**: `5000`, `500000`, `1000000`, `10000000`, `all`
+**--size**: `5k/5000`, `500k/500000/small`, `1m/1000000/medium`, `10m/10000000/large`, `25m/25000000`, `50m/50000000`, `all`
 
 **--trials**: `1`, `2`, `3`, ...
 
