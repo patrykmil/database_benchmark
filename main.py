@@ -2,7 +2,7 @@
 import argparse
 from datetime import datetime
 
-from config import SIZES
+from config import ALL_SIZES, HUGE_SIZES, STANDARD_SIZES
 from nosql.mongo import run_mongo_benchmark
 from nosql.unqlite import run_unqlite_benchmark
 from sql.postgres import run_postgres_benchmark
@@ -32,12 +32,14 @@ OPERATIONS = {
 
 SIZE_ALIASES = [
     (5_000, ["5000", "5k"]),
-    (500_000, ["500000", "500k", "small"]),
-    (1_000_000, ["1000000", "1m", "medium"]),
+    (500_000, ["500000", "500k"]),
+    (1_000_000, ["1000000", "1m"]),
     (5_000_000, ["5000000", "5m"]),
-    (10_000_000, ["10000000", "10m", "large"]),
+    (10_000_000, ["10000000", "10m"]),
     (25_000_000, ["25000000", "25m"]),
     (50_000_000, ["50000000", "50m"]),
+    ("standard", ["standard"]),
+    ("huge", ["huge"]),
     ("all", ["all"]),
 ]
 
@@ -63,7 +65,9 @@ def main():
         choices=list(SIZES_MAP.keys()),
         default="all",
         help=(
-            "Size profile: small/medium/large (500000/1000000/10000000), exact numeric value, or all"
+            "Data size: exact number (5000, 500000, 1000000...), "
+            "compact (5k, 500k, 1m, 5m, 10m, 25m, 50m), "
+            "or profiles: standard=[500k,1m,10m], huge=[25m,50m], all=[standard+huge]"
         ),
     )
     parser.add_argument(
@@ -75,9 +79,7 @@ def main():
     parser.add_argument(
         "--draw",
         action="store_true",
-        help=(
-            "Draw line diagrams from results/benchmark_summary.csv and save to results/diagrams"
-        ),
+        help=("Draw line diagrams from results/benchmark_summary.csv and save to results/diagrams"),
     )
     parser.add_argument(
         "--analyze",
@@ -115,7 +117,17 @@ def main():
         print(f"Extended analysis saved to: {analysis_path}")
         return
 
-    sizes = SIZES if args.size == "all" else [SIZES_MAP[args.size]]
+    sizes = []
+    if args.size == "standard":
+        sizes = STANDARD_SIZES
+    elif args.size == "huge":
+        sizes = HUGE_SIZES
+    elif args.size == "all":
+        sizes = ALL_SIZES
+    elif args.size in SIZES_MAP:
+        sizes = [SIZES_MAP[args.size]]
+    else:
+        parser.error(f"Invalid size: {args.size}. Must be one of: {', '.join(SIZES_MAP.keys())}")
 
     if args.db == "all":
         dbs = ["postgres", "sqlite", "mongo", "unqlite"]
