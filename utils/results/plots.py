@@ -1,7 +1,6 @@
 import csv
 import os
 from collections import defaultdict
-from datetime import datetime
 
 import pandas as pd
 import seaborn as sns
@@ -71,7 +70,7 @@ def draw_summary_diagrams():
         overall_by_db_size[(database, size)].append(avg_time)
         op_type = _operation_type(operation)
         if op_type:
-            boxplot_rows.append((database, op_type, avg_time))
+            boxplot_rows.append((database, op_type, avg_time, size))
 
     if not grouped:
         return []
@@ -81,124 +80,158 @@ def draw_summary_diagrams():
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    output_dir = "results/diagrams"
-    os.makedirs(output_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    standard_sizes = {500000, 1000000, 10000000}
+    huge_sizes = {10000000, 25000000, 50000000}
+    huge_dbs = {"postgres", "sqlite"}
 
     generated_files = []
-    for operation in sorted(grouped.keys()):
-        plt.figure(figsize=(10, 6))
+    for sizes_subset, subdir, prefix in [
+        (standard_sizes, "standard", ""),
+        (huge_sizes, "huge", "huge_"),
+    ]:
+        output_dir = f"results/diagrams/{subdir}"
+        os.makedirs(output_dir, exist_ok=True)
 
-        for database in sorted(grouped[operation].keys()):
-            points = sorted(grouped[operation][database], key=lambda x: x[0])
-            sizes = [point[0] for point in points]
-            times = [point[1] for point in points]
-            color = DB_COLORS.get(database)
+        filtered_grouped = defaultdict(lambda: defaultdict(list))
+        filtered_overall = defaultdict(list)
+        filtered_boxplot = []
 
-            plt.plot(sizes, times, marker="o", linewidth=2, label=database, color=color)
+        for operation, op_dbs in grouped.items():
+            for database, points in op_dbs.items():
+                if subdir == "huge" and database not in huge_dbs:
+                    continue
+                filtered_points = [(s, t) for s, t in points if s in sizes_subset]
+                if filtered_points:
+                    filtered_grouped[operation][database] = filtered_points
 
-        plt.title(f"Operation: {operation}")
-        plt.xlabel("Data Size")
-        plt.ylabel("Avg Time (ms)")
-        ax = plt.gca()
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
-        plt.legend()
-        plt.grid(True, linestyle="--", alpha=0.4)
-        plt.tight_layout()
+        for (database, size), values in overall_by_db_size.items():
+            if subdir == "huge" and database not in huge_dbs:
+                continue
+            if size in sizes_subset and values:
+                filtered_overall[database].append((size, sum(values) / len(values)))
 
-        safe_operation = "".join(
-            c if c.isalnum() or c in ("-", "_") else "_" for c in operation
-        )
-        output_file = f"{safe_operation}_{timestamp}.png"
-        output_path = os.path.join(output_dir, output_file)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
-        generated_files.append(output_path)
+        for db, op_type, avg_time, size in boxplot_rows:
+            if subdir == "huge" and db not in huge_dbs:
+                continue
+            if size in sizes_subset:
+                filtered_boxplot.append((db, op_type, avg_time))
 
-    avg_grouped = defaultdict(list)
-    for (database, size), values in overall_by_db_size.items():
-        if not values:
-            continue
-        avg_grouped[database].append((size, sum(values) / len(values)))
+        for operation in sorted(filtered_grouped.keys()):
+            plt.figure(figsize=(10, 6))
 
-    if avg_grouped:
-        plt.figure(figsize=(10, 6))
+            for database in sorted(filtered_grouped[operation].keys()):
+                points = sorted(
+                    filtered_grouped[operation][database], key=lambda x: x[0]
+                )
+                sizes = [point[0] for point in points]
+                times = [point[1] for point in points]
+                color = DB_COLORS.get(database)
 
-        for database in sorted(avg_grouped.keys()):
-            points = sorted(avg_grouped[database], key=lambda x: x[0])
-            sizes = [point[0] for point in points]
-            times = [point[1] for point in points]
-            color = DB_COLORS.get(database)
-            plt.plot(sizes, times, marker="o", linewidth=2, label=database, color=color)
+                plt.plot(
+                    sizes, times, marker="o", linewidth=2, label=database, color=color
+                )
 
-        plt.title("Average across all operations")
-        plt.xlabel("Data Size")
-        plt.ylabel("Avg Time (ms)")
-        ax = plt.gca()
-        ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
-        plt.legend()
-        plt.grid(True, linestyle="--", alpha=0.4)
-        plt.tight_layout()
+            plt.title(f"Operation: {operation}")
+            plt.xlabel("Data Size")
+            plt.ylabel("Avg Time (ms)")
+            ax = plt.gca()
+            ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
+            plt.legend()
+            plt.grid(True, linestyle="--", alpha=0.4)
+            plt.tight_layout()
 
-        output_file = f"all_operations_average_{timestamp}.png"
-        output_path = os.path.join(output_dir, output_file)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
-        generated_files.append(output_path)
+            safe_operation = "".join(
+                c if c.isalnum() or c in ("-", "_") else "_" for c in operation
+            )
+            output_file = f"{prefix}{safe_operation}.png"
+            output_path = os.path.join(output_dir, output_file)
+            plt.savefig(output_path, dpi=150)
+            plt.close()
+            generated_files.append(output_path)
 
-    if boxplot_rows:
-        plt.figure(figsize=(11, 6.5))
-        boxplot_data = pd.DataFrame(
-            [
-                {"database": db, "operation_type": op_type, "avg_time_ms": avg_time}
-                for db, op_type, avg_time in boxplot_rows
-            ]
-        )
-        sns.boxplot(
-            data=boxplot_data,
-            x="operation_type",
-            y="avg_time_ms",
-            hue="database",
-            order=["insert", "select", "update", "delete"],
-            hue_order=sorted({row[0] for row in boxplot_rows}),
-            palette=DB_COLORS,
-            showfliers=False,
-        )
-        plt.title("Operation Type Distribution by Database")
-        plt.xlabel("Operation Type")
-        plt.ylabel("Avg Time (ms)")
-        plt.grid(True, axis="y", linestyle="--", alpha=0.3)
-        plt.tight_layout()
+        if filtered_overall:
+            plt.figure(figsize=(10, 6))
 
-        output_file = f"operation_type_boxplot_{timestamp}.png"
-        output_path = os.path.join(output_dir, output_file)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
-        generated_files.append(output_path)
+            for database in sorted(filtered_overall.keys()):
+                points = sorted(filtered_overall[database], key=lambda x: x[0])
+                sizes = [point[0] for point in points]
+                times = [point[1] for point in points]
+                color = DB_COLORS.get(database)
+                plt.plot(
+                    sizes, times, marker="o", linewidth=2, label=database, color=color
+                )
 
-        boxplot_data_no_unqlite = boxplot_data[boxplot_data["database"] != "unqlite"]
-        if not boxplot_data_no_unqlite.empty:
+            plt.title("Average across all operations")
+            plt.xlabel("Data Size")
+            plt.ylabel("Avg Time (ms)")
+            ax = plt.gca()
+            ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
+            plt.legend()
+            plt.grid(True, linestyle="--", alpha=0.4)
+            plt.tight_layout()
+
+            output_file = f"{prefix}all_operations_average.png"
+            output_path = os.path.join(output_dir, output_file)
+            plt.savefig(output_path, dpi=150)
+            plt.close()
+            generated_files.append(output_path)
+
+        if filtered_boxplot:
+            boxplot_data = pd.DataFrame(
+                [
+                    {"database": db, "operation_type": op_type, "avg_time_ms": avg_time}
+                    for db, op_type, avg_time in filtered_boxplot
+                ]
+            )
+
             plt.figure(figsize=(11, 6.5))
             sns.boxplot(
-                data=boxplot_data_no_unqlite,
+                data=boxplot_data,
                 x="operation_type",
                 y="avg_time_ms",
                 hue="database",
                 order=["insert", "select", "update", "delete"],
-                hue_order=sorted(set(boxplot_data_no_unqlite["database"])),
+                hue_order=sorted({row[0] for row in filtered_boxplot}),
                 palette=DB_COLORS,
                 showfliers=False,
             )
-            plt.title("Operation Type Distribution by Database (without UnQLite)")
+            plt.title("Operation Type Distribution by Database")
             plt.xlabel("Operation Type")
             plt.ylabel("Avg Time (ms)")
             plt.grid(True, axis="y", linestyle="--", alpha=0.3)
             plt.tight_layout()
 
-            output_file = f"operation_type_boxplot_no_unqlite_{timestamp}.png"
+            output_file = f"{prefix}operation_type_boxplot.png"
             output_path = os.path.join(output_dir, output_file)
             plt.savefig(output_path, dpi=150)
             plt.close()
             generated_files.append(output_path)
+
+            boxplot_data_no_unqlite = boxplot_data[
+                boxplot_data["database"] != "unqlite"
+            ]
+            if not boxplot_data_no_unqlite.empty:
+                plt.figure(figsize=(11, 6.5))
+                sns.boxplot(
+                    data=boxplot_data_no_unqlite,
+                    x="operation_type",
+                    y="avg_time_ms",
+                    hue="database",
+                    order=["insert", "select", "update", "delete"],
+                    hue_order=sorted(set(boxplot_data_no_unqlite["database"])),
+                    palette=DB_COLORS,
+                    showfliers=False,
+                )
+                plt.title("Operation Type Distribution by Database (without UnQLite)")
+                plt.xlabel("Operation Type")
+                plt.ylabel("Avg Time (ms)")
+                plt.grid(True, axis="y", linestyle="--", alpha=0.3)
+                plt.tight_layout()
+
+                output_file = f"{prefix}operation_type_boxplot_no_unqlite.png"
+                output_path = os.path.join(output_dir, output_file)
+                plt.savefig(output_path, dpi=150)
+                plt.close()
+                generated_files.append(output_path)
 
     return generated_files
