@@ -1,3 +1,9 @@
+from utils.benchmark_helpers import (
+    BENCHMARK_EMAILS,
+    DELETE_TARGET_CATEGORIES,
+    DELETE_TARGET_IDS,
+)
+
 NONINDEXED_OPERATIONS = {
     # CREATE - 6 queries
     "insert_single": lambda: {
@@ -105,7 +111,7 @@ NONINDEXED_OPERATIONS = {
     # DELETE - 6 queries
     "delete_single": lambda: {"_id": -1},
     "delete_many": lambda: {"created_at": {"$lt": "2020-01-01"}},
-    "delete_in": lambda: {"_id": {"$in": [100, 101, 102]}},
+    "delete_in": lambda: {"_id": {"$in": DELETE_TARGET_IDS}},
     "delete_cascade": lambda: {"user_id": 1},
     "delete_join": lambda: [
         {
@@ -230,7 +236,7 @@ INDEXED_OPERATIONS = {
     # DELETE - 6 queries (using indexed fields)
     "index_delete_single": lambda: {"email": "delete@example.com"},
     "index_delete_many": lambda: {"created_at": {"$lt": "2020-01-01"}},
-    "index_delete_in": lambda: {"category_id": {"$in": [100, 101]}},
+    "index_delete_in": lambda: {"category_id": {"$in": DELETE_TARGET_CATEGORIES}},
     "index_delete_cascade": lambda: {"user_id": 1},
     "index_delete_join": lambda: [
         {
@@ -283,7 +289,7 @@ EXPLAIN_OPERATIONS = {
     "explain_update_in": lambda: {"$set": {"price": 9.99}},
     "explain_delete": lambda: {"email": "delete@example.com"},
     "explain_delete_many": lambda: {"created_at": {"$lt": "2020-01-01"}},
-    "explain_delete_in": lambda: {"category_id": {"$in": [100, 101]}},
+    "explain_delete_in": lambda: {"category_id": {"$in": DELETE_TARGET_CATEGORIES}},
     "explain_delete_cascade": lambda: {"user_id": 1},
     "explain_indexed_select": lambda: {"category_id": 1},
     "explain_indexed_range": lambda: {"price": {"$gte": 100, "$lte": 500}},

@@ -12,6 +12,7 @@ from nosql.queries import (
     JSON_OPERATIONS,
     NONINDEXED_OPERATIONS,
 )
+from utils.benchmark_helpers import needs_starting_data_refresh
 from utils.generator import (
     generate_address,
     generate_bulk_addresses,
@@ -120,16 +121,7 @@ class UnqliteBenchmark:
         return total
 
     def needs_starting_data_refresh(self, target_size):
-        current_size = self.get_total_record_count()
-        if current_size is None:
-            print("Current total record count is unknown, refreshing data.")
-            return True
-        need = abs(current_size - target_size) > (target_size * 0.05)
-        if need:
-            print(
-                f"Current total record count {current_size:_} differs from target {target_size:_} by more than 5%, refreshing data."
-            )
-        return need
+        return needs_starting_data_refresh(self, target_size)
 
     def _bulk_store(self, collection_name, docs):
         for doc in docs:
@@ -1009,32 +1001,56 @@ def run_unqlite_benchmark(size, operation_type="all", trial=1):
             if bench.get_total_record_count() is None:
                 bench.reset_database()
                 bench.populate_starting_data(size)
-            elif bench.needs_starting_data_refresh(size):
-                bench.reconcile_starting_data(size)
+            else:
+                needs_refresh, use_populate = bench.needs_starting_data_refresh(size)
+                if needs_refresh:
+                    if use_populate:
+                        bench.reset_database()
+                        bench.populate_starting_data(size)
+                    else:
+                        bench.reconcile_starting_data(size)
             bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
             if bench.get_total_record_count() is None:
                 bench.reset_database()
                 bench.populate_starting_data(size)
-            elif bench.needs_starting_data_refresh(size):
-                bench.reconcile_starting_data(size)
+            else:
+                needs_refresh, use_populate = bench.needs_starting_data_refresh(size)
+                if needs_refresh:
+                    if use_populate:
+                        bench.reset_database()
+                        bench.populate_starting_data(size)
+                    else:
+                        bench.reconcile_starting_data(size)
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["explain"]:
             if bench.get_total_record_count() is None:
                 bench.reset_database()
                 bench.populate_starting_data(size)
-            elif bench.needs_starting_data_refresh(size):
-                bench.reconcile_starting_data(size)
+            else:
+                needs_refresh, use_populate = bench.needs_starting_data_refresh(size)
+                if needs_refresh:
+                    if use_populate:
+                        bench.reset_database()
+                        bench.populate_starting_data(size)
+                    else:
+                        bench.reconcile_starting_data(size)
             bench.run_explain_queries(trial=trial)
 
         if operation_type in ["all", "json"]:
             if bench.get_total_record_count() is None:
                 bench.reset_database()
                 bench.populate_starting_data(size)
-            elif bench.needs_starting_data_refresh(size):
-                bench.reconcile_starting_data(size)
+            else:
+                needs_refresh, use_populate = bench.needs_starting_data_refresh(size)
+                if needs_refresh:
+                    if use_populate:
+                        bench.reset_database()
+                        bench.populate_starting_data(size)
+                    else:
+                        bench.reconcile_starting_data(size)
             bench.run_json_queries(size, trial=trial)
 
     finally:

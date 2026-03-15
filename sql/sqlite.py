@@ -11,6 +11,11 @@ from sql.queries import (
     NONINDEXED_QUERIES,
 )
 from sql.schema import SQLITE_INDEXES, SQLITE_SCHEMA
+from utils.benchmark_helpers import (
+    DELETE_TARGET_CATEGORIES,
+    DELETE_TARGET_IDS,
+    needs_starting_data_refresh,
+)
 from utils.generator import (
     generate_address,
     generate_bulk_addresses,
@@ -110,16 +115,7 @@ class SQLiteBenchmark:
         return total
 
     def needs_starting_data_refresh(self, target_size):
-        current_size = self.get_total_record_count()
-        if current_size is None:
-            print("Current total record count is unknown, refreshing data.")
-            return True
-        need = abs(current_size - target_size) > (target_size * 0.05)
-        if need:
-            print(
-                f"Current total record count {current_size:_} differs from target {target_size:_} by more than 5%, refreshing data."
-            )
-        return need
+        return needs_starting_data_refresh(self, target_size)
 
     def ensure_indexes(self):
         cur = self.conn.cursor()
@@ -733,50 +729,53 @@ class SQLiteBenchmark:
         self.conn.commit()
 
     def cleanup_delete_targets(self):
+        category_ids = ",".join(map(str, DELETE_TARGET_CATEGORIES))
+        user_ids = ",".join(map(str, DELETE_TARGET_IDS))
+
         cur = self.conn.cursor()
         cur.execute(
-            """
+            f"""
             DELETE FROM order_items
             WHERE product_id IN (
-                SELECT id FROM products WHERE category_id IN (100, 101)
+                SELECT id FROM products WHERE category_id IN ({category_ids})
             )
             """
         )
         cur.execute(
-            """
+            f"""
             DELETE FROM reviews
             WHERE product_id IN (
-                SELECT id FROM products WHERE category_id IN (100, 101)
+                SELECT id FROM products WHERE category_id IN ({category_ids})
             )
             """
         )
         cur.execute(
-            """
+            f"""
             DELETE FROM inventory
             WHERE product_id IN (
-                SELECT id FROM products WHERE category_id IN (100, 101)
+                SELECT id FROM products WHERE category_id IN ({category_ids})
             )
             """
         )
         cur.execute(
-            """
+            f"""
             DELETE FROM payments
             WHERE order_id IN (
-                SELECT id FROM orders WHERE user_id IN (1, 100, 101, 102)
+                SELECT id FROM orders WHERE user_id IN ({user_ids})
             )
             """
         )
         cur.execute(
-            """
+            f"""
             DELETE FROM order_items
             WHERE order_id IN (
-                SELECT id FROM orders WHERE user_id IN (1, 100, 101, 102)
+                SELECT id FROM orders WHERE user_id IN ({user_ids})
             )
             """
         )
-        cur.execute("DELETE FROM orders WHERE user_id IN (1, 100, 101, 102)")
-        cur.execute("DELETE FROM reviews WHERE user_id IN (1, 100, 101, 102)")
-        cur.execute("DELETE FROM addresses WHERE user_id IN (1, 100, 101, 102)")
+        cur.execute(f"DELETE FROM orders WHERE user_id IN ({user_ids})")
+        cur.execute(f"DELETE FROM reviews WHERE user_id IN ({user_ids})")
+        cur.execute(f"DELETE FROM addresses WHERE user_id IN ({user_ids})")
         self.conn.commit()
 
     def ensure_addresses_volume(self, total_records):
@@ -954,22 +953,34 @@ def run_sqlite_benchmark(size, operation_type="all", trial=1):
             if bench.get_total_record_count() is None:
                 bench.setup_schema(create_indexes=False)
                 bench.populate_starting_data(size)
-            elif bench.needs_starting_data_refresh(size):
-                bench.drop_indexes()
-                bench.reconcile_starting_data(size)
             else:
-                bench.drop_indexes()
+                needs_refresh, use_populate = bench.needs_starting_data_refresh(size)
+                if needs_refresh:
+                    bench.drop_indexes()
+                    if use_populate:
+                        bench.setup_schema(create_indexes=False)
+                        bench.populate_starting_data(size)
+                    else:
+                        bench.reconcile_starting_data(size)
+                else:
+                    bench.drop_indexes()
             bench.run_nonindexed_queries(size, trial=trial)
 
         if operation_type in ["all", "indexed"]:
             if bench.get_total_record_count() is None:
                 bench.setup_schema(create_indexes=True)
                 bench.populate_starting_data(size)
-            elif bench.needs_starting_data_refresh(size):
-                bench.ensure_indexes()
-                bench.reconcile_starting_data(size)
             else:
-                bench.ensure_indexes()
+                needs_refresh, use_populate = bench.needs_starting_data_refresh(size)
+                if needs_refresh:
+                    bench.ensure_indexes()
+                    if use_populate:
+                        bench.setup_schema(create_indexes=True)
+                        bench.populate_starting_data(size)
+                    else:
+                        bench.reconcile_starting_data(size)
+                else:
+                    bench.ensure_indexes()
             bench.run_indexed_queries(size, trial=trial)
 
         if operation_type in ["explain"]:

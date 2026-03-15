@@ -1,7 +1,3 @@
-STANDARD_SIZES = [500_000, 1_000_000, 10_000_000]
-HUGE_SIZES = [25_000_000, 50_000_000]
-ALL_SIZES = STANDARD_SIZES + HUGE_SIZES
-
 DATABASES = {
     "postgres": {
         "host": "localhost",
@@ -15,4 +11,6 @@ DATABASES = {
     "unqlite": {"database": "benchmark.unqlite"},
 }
 
-CSV_FILE = "results/benchmark_results.csv"
+RESULTS_CSV_FILE = "results/benchmark_results.csv"
+SUMMARY_CSV_FILE = "results/benchmark_summary.csv"
+ANALYSIS_FILE = "results/benchmark_analysis.md"
