@@ -33,6 +33,7 @@ def draw_summary_diagrams():
 
     grouped = defaultdict(lambda: defaultdict(list))
     overall_by_db_size = defaultdict(list)
+    index_overall_by_db_size = defaultdict(list)
     boxplot_rows = []
     with open(SUMMARY_CSV_FILE, "r", newline="") as f:
         reader = csv.reader(f)
@@ -68,6 +69,8 @@ def draw_summary_diagrams():
 
         grouped[operation][database].append((size, avg_time))
         overall_by_db_size[(database, size)].append(avg_time)
+        if operation.startswith("index_"):
+            index_overall_by_db_size[(database, size)].append(avg_time)
         op_type = _operation_type(operation)
         if op_type:
             boxplot_rows.append((database, op_type, avg_time, size))
@@ -94,6 +97,7 @@ def draw_summary_diagrams():
 
         filtered_grouped = defaultdict(lambda: defaultdict(list))
         filtered_overall = defaultdict(list)
+        filtered_index_overall = defaultdict(list)
         filtered_boxplot = []
 
         for operation, op_dbs in grouped.items():
@@ -110,6 +114,12 @@ def draw_summary_diagrams():
             if size in sizes_subset and values:
                 filtered_overall[database].append((size, sum(values) / len(values)))
 
+        for (database, size), values in index_overall_by_db_size.items():
+            if subdir == "huge" and database not in huge_dbs:
+                continue
+            if size in sizes_subset and values:
+                filtered_index_overall[database].append((size, sum(values) / len(values)))
+
         for db, op_type, avg_time, size in boxplot_rows:
             if subdir == "huge" and db not in huge_dbs:
                 continue
@@ -120,16 +130,12 @@ def draw_summary_diagrams():
             plt.figure(figsize=(10, 6))
 
             for database in sorted(filtered_grouped[operation].keys()):
-                points = sorted(
-                    filtered_grouped[operation][database], key=lambda x: x[0]
-                )
+                points = sorted(filtered_grouped[operation][database], key=lambda x: x[0])
                 sizes = [point[0] for point in points]
                 times = [point[1] for point in points]
                 color = DB_COLORS.get(database)
 
-                plt.plot(
-                    sizes, times, marker="o", linewidth=2, label=database, color=color
-                )
+                plt.plot(sizes, times, marker="o", linewidth=2, label=database, color=color)
 
             plt.title(f"Operation: {operation}")
             plt.xlabel("Data Size")
@@ -140,9 +146,7 @@ def draw_summary_diagrams():
             plt.grid(True, linestyle="--", alpha=0.4)
             plt.tight_layout()
 
-            safe_operation = "".join(
-                c if c.isalnum() or c in ("-", "_") else "_" for c in operation
-            )
+            safe_operation = "".join(c if c.isalnum() or c in ("-", "_") else "_" for c in operation)
             output_file = f"{prefix}{safe_operation}.png"
             output_path = os.path.join(output_dir, output_file)
             plt.savefig(output_path, dpi=150)
@@ -157,9 +161,7 @@ def draw_summary_diagrams():
                 sizes = [point[0] for point in points]
                 times = [point[1] for point in points]
                 color = DB_COLORS.get(database)
-                plt.plot(
-                    sizes, times, marker="o", linewidth=2, label=database, color=color
-                )
+                plt.plot(sizes, times, marker="o", linewidth=2, label=database, color=color)
 
             plt.title("Average across all operations")
             plt.xlabel("Data Size")
@@ -171,6 +173,75 @@ def draw_summary_diagrams():
             plt.tight_layout()
 
             output_file = f"{prefix}all_operations_average.png"
+            output_path = os.path.join(output_dir, output_file)
+            plt.savefig(output_path, dpi=150)
+            plt.close()
+            generated_files.append(output_path)
+
+        if filtered_index_overall:
+            plt.figure(figsize=(10, 6))
+
+            for database in sorted(filtered_index_overall.keys()):
+                points = sorted(filtered_index_overall[database], key=lambda x: x[0])
+                sizes = [point[0] for point in points]
+                times = [point[1] for point in points]
+                color = DB_COLORS.get(database)
+                plt.plot(sizes, times, marker="o", linewidth=2, label=database, color=color)
+
+            plt.title("Average across all index operations")
+            plt.xlabel("Data Size")
+            plt.ylabel("Avg Time (ms)")
+            ax = plt.gca()
+            ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
+            plt.legend()
+            plt.grid(True, linestyle="--", alpha=0.4)
+            plt.tight_layout()
+
+            output_file = f"{prefix}index_all_operations_average.png"
+            output_path = os.path.join(output_dir, output_file)
+            plt.savefig(output_path, dpi=150)
+            plt.close()
+            generated_files.append(output_path)
+
+        if filtered_overall or filtered_index_overall:
+            plt.figure(figsize=(10, 6))
+
+            # Plot all operations average with solid lines
+            for database in sorted(filtered_overall.keys()):
+                points = sorted(filtered_overall[database], key=lambda x: x[0])
+                sizes = [point[0] for point in points]
+                times = [point[1] for point in points]
+                color = DB_COLORS.get(database)
+                plt.plot(
+                    sizes, times, marker="o", linewidth=2, label=f"{database}", color=color, linestyle="-"
+                )
+
+            # Plot index operations average with dashed lines
+            for database in sorted(filtered_index_overall.keys()):
+                points = sorted(filtered_index_overall[database], key=lambda x: x[0])
+                sizes = [point[0] for point in points]
+                times = [point[1] for point in points]
+                color = DB_COLORS.get(database)
+                plt.plot(
+                    sizes,
+                    times,
+                    marker="s",
+                    linewidth=2,
+                    label=f"{database} (index)",
+                    color=color,
+                    linestyle="--",
+                )
+
+            plt.title("All operations average vs Index operations average")
+            plt.xlabel("Data Size")
+            plt.ylabel("Avg Time (ms)")
+            ax = plt.gca()
+            ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
+            plt.legend()
+            plt.grid(True, linestyle="--", alpha=0.4)
+            plt.tight_layout()
+
+            output_file = f"{prefix}combined_all_vs_index_operations_average.png"
             output_path = os.path.join(output_dir, output_file)
             plt.savefig(output_path, dpi=150)
             plt.close()
@@ -207,9 +278,7 @@ def draw_summary_diagrams():
             plt.close()
             generated_files.append(output_path)
 
-            boxplot_data_no_unqlite = boxplot_data[
-                boxplot_data["database"] != "unqlite"
-            ]
+            boxplot_data_no_unqlite = boxplot_data[boxplot_data["database"] != "unqlite"]
             if not boxplot_data_no_unqlite.empty:
                 plt.figure(figsize=(11, 6.5))
                 sns.boxplot(
