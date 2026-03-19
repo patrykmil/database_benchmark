@@ -173,6 +173,85 @@ def draw_summary_diagrams():
             plt.close()
             generated_files.append(output_path)
 
+        comparable_operations = sorted(
+            operation
+            for operation in filtered_grouped.keys()
+            if not operation.startswith("index_")
+            and f"index_{operation}" in filtered_grouped
+        )
+
+        for operation in comparable_operations:
+            indexed_operation = f"index_{operation}"
+            plt.figure(figsize=(10, 6))
+            plotted_any = False
+
+            all_databases = sorted(
+                set(filtered_grouped[operation].keys())
+                | set(filtered_grouped[indexed_operation].keys())
+            )
+
+            for database in all_databases:
+                if database in INDEX_EXCLUDED_DATABASES:
+                    continue
+
+                nonindexed_points = sorted(
+                    filtered_grouped[operation].get(database, []), key=lambda x: x[0]
+                )
+                indexed_points = sorted(
+                    filtered_grouped[indexed_operation].get(database, []),
+                    key=lambda x: x[0],
+                )
+
+                color = DB_COLORS.get(database)
+
+                if nonindexed_points:
+                    sizes = [point[0] for point in nonindexed_points]
+                    times = [point[1] for point in nonindexed_points]
+                    plt.plot(
+                        sizes,
+                        times,
+                        marker="o",
+                        linewidth=2,
+                        label=f"{database}",
+                        color=color,
+                        linestyle="-",
+                    )
+                    plotted_any = True
+
+                if indexed_points:
+                    sizes = [point[0] for point in indexed_points]
+                    times = [point[1] for point in indexed_points]
+                    plt.plot(
+                        sizes,
+                        times,
+                        marker="s",
+                        linewidth=2,
+                        label=f"{database} indexed",
+                        color=color,
+                        linestyle="--",
+                    )
+                    plotted_any = True
+
+            if plotted_any:
+                plt.title(f"Operation comparison: {operation} (non-index vs indexed)")
+                plt.xlabel("Data Size")
+                plt.ylabel("Avg Time (ms)")
+                ax = plt.gca()
+                ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
+                plt.legend()
+                plt.grid(True, linestyle="--", alpha=0.4)
+                plt.tight_layout()
+
+                safe_operation = "".join(
+                    c if c.isalnum() or c in ("-", "_") else "_" for c in operation
+                )
+                output_file = f"{prefix}compare_nonindex_vs_index_{safe_operation}.png"
+                output_path = os.path.join(output_dir, output_file)
+                plt.savefig(output_path, dpi=150)
+                generated_files.append(output_path)
+
+            plt.close()
+
         if filtered_overall:
             plt.figure(figsize=(10, 6))
 
