@@ -441,7 +441,6 @@ class MongoBenchmark:
                 except:
                     pass
             elif name == "insert_upsert":
-                # SQL: INSERT ... ON CONFLICT (email) DO UPDATE SET name, preferences
                 data = query_func()
                 self.db.users.update_one(data["filter"], data["update"], upsert=True)
             elif name == "insert_many":

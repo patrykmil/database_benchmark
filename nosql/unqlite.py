@@ -938,7 +938,6 @@ class UnqliteBenchmark:
                         col.delete(doc["__id"])
                 elapsed = (time.time() - start) * 1000
             elif name == "index_delete_truncate":
-                # SQL: DELETE FROM addresses
                 col = self._get_collection("addresses")
                 if col.exists():
                     start = time.time()
