@@ -1,6 +1,7 @@
 import csv
 import os
 from collections import defaultdict
+from typing import Any, cast
 
 import pandas as pd
 import seaborn as sns
@@ -14,6 +15,8 @@ DB_COLORS = {
     "mongo": "#2ca02c",
     "unqlite": "#76D03D",
 }
+
+INDEX_EXCLUDED_DATABASES = {"unqlite"}
 
 
 def _operation_type(operation):
@@ -102,6 +105,11 @@ def draw_summary_diagrams():
 
         for operation, op_dbs in grouped.items():
             for database, points in op_dbs.items():
+                if (
+                    operation.startswith("index_")
+                    and database in INDEX_EXCLUDED_DATABASES
+                ):
+                    continue
                 if subdir == "huge" and database not in huge_dbs:
                     continue
                 filtered_points = [(s, t) for s, t in points if s in sizes_subset]
@@ -115,6 +123,8 @@ def draw_summary_diagrams():
                 filtered_overall[database].append((size, sum(values) / len(values)))
 
         for (database, size), values in index_overall_by_db_size.items():
+            if database in INDEX_EXCLUDED_DATABASES:
+                continue
             if subdir == "huge" and database not in huge_dbs:
                 continue
             if size in sizes_subset and values:
@@ -123,6 +133,8 @@ def draw_summary_diagrams():
                 )
 
         for db, op_type, avg_time, size in boxplot_rows:
+            if db in INDEX_EXCLUDED_DATABASES:
+                continue
             if subdir == "huge" and db not in huge_dbs:
                 continue
             if size in sizes_subset:
@@ -192,6 +204,8 @@ def draw_summary_diagrams():
             plt.figure(figsize=(10, 6))
 
             for database in sorted(filtered_index_overall.keys()):
+                if database in INDEX_EXCLUDED_DATABASES:
+                    continue
                 points = sorted(filtered_index_overall[database], key=lambda x: x[0])
                 sizes = [point[0] for point in points]
                 times = [point[1] for point in points]
@@ -219,6 +233,8 @@ def draw_summary_diagrams():
             plt.figure(figsize=(10, 6))
 
             for database in sorted(filtered_overall.keys()):
+                if database in INDEX_EXCLUDED_DATABASES:
+                    continue
                 points = sorted(filtered_overall[database], key=lambda x: x[0])
                 sizes = [point[0] for point in points]
                 times = [point[1] for point in points]
@@ -234,6 +250,8 @@ def draw_summary_diagrams():
                 )
 
             for database in sorted(filtered_index_overall.keys()):
+                if database in INDEX_EXCLUDED_DATABASES:
+                    continue
                 points = sorted(filtered_index_overall[database], key=lambda x: x[0])
                 sizes = [point[0] for point in points]
                 times = [point[1] for point in points]
@@ -273,7 +291,7 @@ def draw_summary_diagrams():
 
             plt.figure(figsize=(11, 6.5))
             sns.boxplot(
-                data=boxplot_data,
+                data=cast(Any, boxplot_data),
                 x="operation_type",
                 y="avg_time_ms",
                 hue="database",
@@ -294,13 +312,14 @@ def draw_summary_diagrams():
             plt.close()
             generated_files.append(output_path)
 
-            boxplot_data_no_unqlite = boxplot_data[
-                boxplot_data["database"] != "unqlite"
-            ]
+            boxplot_data_no_unqlite = cast(
+                pd.DataFrame,
+                boxplot_data.loc[boxplot_data["database"] != "unqlite"].copy(),
+            )
             if not boxplot_data_no_unqlite.empty:
                 plt.figure(figsize=(11, 6.5))
                 sns.boxplot(
-                    data=boxplot_data_no_unqlite,
+                    data=cast(Any, boxplot_data_no_unqlite),
                     x="operation_type",
                     y="avg_time_ms",
                     hue="database",
