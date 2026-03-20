@@ -5,20 +5,20 @@ import time
 import psycopg2
 from psycopg2.extras import execute_values
 
-from config import DATABASES
-from sql.queries import (
+from src.config.connections import DATABASES
+from src.sql.queries import (
     EXPLAIN_QUERIES,
     INDEXED_QUERIES,
     JSON_QUERIES,
     NONINDEXED_QUERIES,
 )
-from sql.schema import INDEXES, SCHEMA
-from utils.benchmark_helpers import (
+from src.sql.schema import INDEXES, SCHEMA
+from src.utils.benchmark_helpers import (
     DELETE_TARGET_CATEGORIES,
     DELETE_TARGET_IDS,
     needs_starting_data_refresh,
 )
-from utils.generator import (
+from src.utils.generator import (
     generate_address,
     generate_bulk_addresses,
     generate_bulk_categories,
@@ -39,7 +39,7 @@ from utils.generator import (
     generate_warehouse,
     split_starting_data,
 )
-from utils.results import save_explain_result, save_result
+from src.utils.results import save_explain_result, save_result
 
 
 class PostgresBenchmark:

@@ -3,15 +3,15 @@ import time
 
 from pymongo import MongoClient
 
-from config import DATABASES
-from nosql.queries import (
+from src.config.connections import DATABASES
+from src.nosql.queries import (
     EXPLAIN_OPERATIONS,
     INDEXED_OPERATIONS,
     JSON_OPERATIONS,
     NONINDEXED_OPERATIONS,
 )
-from utils.benchmark_helpers import needs_starting_data_refresh
-from utils.generator import (
+from src.utils.benchmark_helpers import needs_starting_data_refresh
+from src.utils.generator import (
     generate_address,
     generate_bulk_addresses,
     generate_bulk_categories,
@@ -33,7 +33,7 @@ from utils.generator import (
     generate_warehouse,
     split_starting_data,
 )
-from utils.results import save_explain_result, save_result
+from src.utils.results import save_explain_result, save_result
 
 
 class MongoBenchmark:

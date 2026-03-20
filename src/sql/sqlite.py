@@ -3,20 +3,20 @@ import random
 import sqlite3
 import time
 
-from config import DATABASES
-from sql.queries import (
+from src.config.connections import DATABASES
+from src.sql.queries import (
     EXPLAIN_QUERIES,
     INDEXED_QUERIES,
     JSON_QUERIES,
     NONINDEXED_QUERIES,
 )
-from sql.schema import SQLITE_INDEXES, SQLITE_SCHEMA
-from utils.benchmark_helpers import (
+from src.sql.schema import SQLITE_INDEXES, SQLITE_SCHEMA
+from src.utils.benchmark_helpers import (
     DELETE_TARGET_CATEGORIES,
     DELETE_TARGET_IDS,
     needs_starting_data_refresh,
 )
-from utils.generator import (
+from src.utils.generator import (
     generate_address,
     generate_bulk_addresses,
     generate_bulk_categories,
@@ -37,7 +37,7 @@ from utils.generator import (
     generate_warehouse,
     split_starting_data,
 )
-from utils.results import save_explain_result, save_result
+from src.utils.results import save_explain_result, save_result
 
 
 def to_sqlite_query(query):
@@ -84,7 +84,7 @@ class SQLiteBenchmark:
         ]
         for table in required:
             cur.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                "SELECT name from sqlite_master WHERE type='table' AND name=?",
                 (table,),
             )
             if cur.fetchone() is None:

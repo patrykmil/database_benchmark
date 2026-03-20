@@ -3,7 +3,7 @@ import os
 from collections import defaultdict
 from datetime import datetime
 
-from config import RESULTS_CSV_FILE, SUMMARY_CSV_FILE
+from src.config.files import RESULTS_CSV_FILE, SUMMARY_CSV_FILE
 
 SUMMARY_LAST_SAMPLES = 3
 

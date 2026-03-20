@@ -1,5 +1,4 @@
-from utils.benchmark_helpers import (
-    BENCHMARK_EMAILS,
+from src.utils.benchmark_helpers import (
     DELETE_TARGET_CATEGORIES,
     DELETE_TARGET_IDS,
 )

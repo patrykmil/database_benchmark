@@ -1,6 +1,6 @@
 import argparse
 
-from sizes import SIZES_MAP
+from src.config.sizes import SIZES_MAP
 
 DATABASES = {
     "postgres": "postgres",

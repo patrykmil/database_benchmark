@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 from datetime import datetime
 
-from arguments import DATABASES, OPERATIONS, parse_args
-from nosql.mongo import run_mongo_benchmark
-from nosql.unqlite import run_unqlite_benchmark
-from sizes import SIZES_MAP, get_sizes
-from sql.postgres import run_postgres_benchmark
-from sql.sqlite import run_sqlite_benchmark
-from utils.results import (
+from src.config.sizes import SIZES_MAP, get_sizes
+from src.nosql.mongo import run_mongo_benchmark
+from src.nosql.unqlite import run_unqlite_benchmark
+from src.sql.postgres import run_postgres_benchmark
+from src.sql.sqlite import run_sqlite_benchmark
+from src.utils.arguments import OPERATIONS, parse_args
+from src.utils.results import (
     build_extended_analysis,
     build_summary_csv,
     draw_summary_diagrams,

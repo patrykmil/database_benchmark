@@ -10,7 +10,3 @@ DATABASES = {
     "mongo": {"host": "localhost", "port": 27017, "database": "benchmark"},
     "unqlite": {"database": "benchmark.unqlite"},
 }
-
-RESULTS_CSV_FILE = "results/benchmark_results.csv"
-SUMMARY_CSV_FILE = "results/benchmark_summary.csv"
-ANALYSIS_FILE = "results/benchmark_analysis.md"

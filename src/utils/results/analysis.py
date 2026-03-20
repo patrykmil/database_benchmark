@@ -4,7 +4,7 @@ import os
 from collections import defaultdict
 from datetime import datetime
 
-from config import ANALYSIS_FILE, RESULTS_CSV_FILE, SUMMARY_CSV_FILE
+from src.config.files import ANALYSIS_FILE, RESULTS_CSV_FILE, SUMMARY_CSV_FILE
 
 MAX_SAMPLES_DEFAULT = 3
 

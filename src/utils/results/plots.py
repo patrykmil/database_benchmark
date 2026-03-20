@@ -7,7 +7,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.ticker import FuncFormatter
 
-from config import SUMMARY_CSV_FILE
+from src.config.files import SUMMARY_CSV_FILE
 
 DB_COLORS = {
     "postgres": "#1f77b4",

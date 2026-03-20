@@ -2,7 +2,7 @@ import csv
 import os
 from datetime import datetime
 
-from config import RESULTS_CSV_FILE
+from src.config.files import RESULTS_CSV_FILE
 
 CSV_COLUMNS = [
     "database",
